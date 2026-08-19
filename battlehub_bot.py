@@ -314,11 +314,7 @@ async def bhcommands(ctx):
             description = "No commands currently in the list"
         )
     else:
-<<<<<<< HEAD
         lines = [f"**`!{name}`** -> {note}" for name, note in custom_command]
-=======
-        lines = [f"`!{name}` -> {note}" for name, note in custom_command]
->>>>>>> 74cea8e6f4004ed64fe124655743d7a441ee1110
     embed = create_embed(
         title = "📖 Command List",
         description = "\n".join(lines)

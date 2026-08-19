@@ -324,7 +324,6 @@ async def bhcommands(ctx):
 ############################# Error Checks for Commands #########################################
 
 @post.error
-# Checks for missing roles for !post
 async def post_error(ctx, error):
     if isinstance(error, commands.MissingAnyRole):
         #await ctx.send("No permission to send", delete_after = 5)

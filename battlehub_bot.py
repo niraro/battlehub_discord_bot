@@ -6,14 +6,15 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from unix_timestamp import get_discord_timestamp
 from embed import create_embed, create_embed_with_footer
 from battlehub_bot_ui import EventSelectView, MonthSelectView
-import bot_db
-from command_helpers import _build_availability_breakdown, _set_availability, looks_like_shifted_args, DATE_REGEX, TIME_REGEX
+import bot_db as bot_db
+import command_helpers as helper
 from battlehub_commands import BUILTIN_COMMANDS
 import os
 
 # Load the token from the .env file
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
+LOG_CHANNEL_ID = int(os.getenv("LOG_CHANNEL_ID"))
 
 # Database Initialisation
 bot_db.init_db()
@@ -33,13 +34,17 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 async def on_ready():
     print(f"Logged in as {bot.user} - bot is online!")
 
+@bot.before_invoke
+async def before_command_use(ctx):
+    await helper.log_command_usage(ctx, LOG_CHANNEL_ID, create_embed)
+
 ########################## Bot Commands ##############################
 
 # Uses !post for command -- Bot takes input message, posts it, and removes original command
 @bot.command()  
 #@commands.has_any_role("Announcer", "Admin")
 async def post(ctx, *, message):
-    embed = create_embed_with_footer(title = "📢   Announcement", description = message)
+    embed = create_embed_with_footer(title = "📢 Announcement", description = message)
     await ctx.send(embed = embed, content = "")
     await ctx.message.delete()
     
@@ -66,7 +71,7 @@ async def timeconvert(ctx, date_str, time_str, tz_name):
 @bot.command()
 #@commands.has_any_role("Announcer", "Admin")
 async def addevent(ctx, name, date_str, time_str, *, tz_name):
-    if not DATE_REGEX.match(date_str) and looks_like_shifted_args(time_str, tz_name):
+    if not helper.DATE_REGEX.match(date_str) and helper.looks_like_shifted_args(time_str, tz_name):
         embed = create_embed(
             title = "⚠️ Missing Quotes?",
             description = "Please ensure the event name is wrapped in double quotes if its name contains more than one word, following the `<\"Event Name\">` `<DD-MM-YYY>` `<HH:MM>` `<Timezone>` format",
@@ -115,12 +120,12 @@ async def showevents(ctx):
 # Uses command !addavail -- User adds availability to their chosen event
 @bot.command()
 async def addavail(ctx, event_name, role, status, *, note = None):
-    await _set_availability(ctx, event_name, role, status, note)
+    await helper._set_availability(ctx, event_name, role, status, note)
 
 # Uses command !adjustavail -- User adjusts availability of chosen event
 @bot.command()
 async def adjustavail(ctx, event_name, role, status, *, note = None):
-    await _set_availability(ctx, event_name, role, status, note)
+    await helper._set_availability(ctx, event_name, role, status, note)
 
 # Uses command !removeavail -- User removes availability for chosen event
 @bot.command()
@@ -209,7 +214,7 @@ async def checkevent(ctx, event_name):
         )
         await ctx.send(embed = embed)
         return
-    embed = await _build_availability_breakdown(ctx, event, str(ctx.guild.id))
+    embed = await helper._build_availability_breakdown(ctx, event, str(ctx.guild.id))
     await ctx.send(embed = embed)
 
 # Uses command !checkdate -- Allows user to see availabilities of others for an event on a given date    
@@ -248,7 +253,7 @@ async def checkdate(ctx, date_str, tz_name):
         return
     
     if len(events) == 1:
-        embed = await _build_availability_breakdown(ctx, events[0], str(ctx.guild.id))
+        embed = await helper._build_availability_breakdown(ctx, events[0], str(ctx.guild.id))
         await ctx.send(embed = embed)
         return
     

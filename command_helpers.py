@@ -7,6 +7,28 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 DATE_REGEX = re.compile(r"^\d{2}-\d{2}-\d{4}$")
 TIME_REGEX = re.compile(r"^\d{2}:\d{2}$")
 
+LOG_EXCLUDED_COMMANDS= set()
+
+async def log_command_usage(ctx, log_channel_id, create_embed_fn):
+    if ctx.command and ctx.command.name in LOG_EXCLUDED_COMMANDS:
+        return
+    try:
+        log_channel = ctx.bot.get_channel(log_channel_id)
+        if log_channel_id is None:
+            return
+        embed = create_embed(
+            title = "📝 Command Used",
+            description = (
+                f"**Command:** `!{ctx.command}`\n"
+                f"**User:** {ctx.author.mention} (`{ctx.author}`)\n"
+                f"**Channel:** {ctx.channel.mention}"
+            )
+        )
+        await log_channel.send(embed = embed)
+    except Exception as e:
+        print(f"Command logging failed: {e}")
+
+
 # !addevent pattern detector of an unquoted mult-word event name. Pushes a valid date/time/timezone one slot to the right
 def looks_like_shifted_args(time_str, tz_name):
     if not DATE_REGEX.match(time_str):

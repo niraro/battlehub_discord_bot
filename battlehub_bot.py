@@ -15,7 +15,7 @@ import os
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
 LOG_CHANNEL_ID = int(os.getenv("LOG_CHANNEL_ID"))
-dev_guild_id_raw = int(os.getenv("DEV_GUILD_ID"))
+dev_guild_id_raw = os.getenv("DEV_GUILD_ID")
 DEV_GUILD_ID = int(dev_guild_id_raw) if dev_guild_id_raw else None
 
 # Database Initialisation

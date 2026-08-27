@@ -7,8 +7,9 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 DATE_REGEX = re.compile(r"^\d{2}-\d{2}-\d{4}$")
 TIME_REGEX = re.compile(r"^\d{2}:\d{2}$")
 
-LOG_EXCLUDED_COMMANDS= set()
+LOG_EXCLUDED_COMMANDS = set()
 
+# Audit log for command usage
 async def log_command_usage(ctx, log_channel_id, create_embed_fn):
     if ctx.command and ctx.command.name in LOG_EXCLUDED_COMMANDS:
         return
@@ -54,7 +55,7 @@ async def _set_availability(ctx, event_name, role, status, note):
             description = f"**{event_name}** not found. Make sure event exists (check spelling, typos, etc)",
             colour = discord.Colour.red()
         )
-        await ctx.send(embed = embed)
+        await ctx.send(embed = embed, ephemeral = True)
         return
     
     role_obj = discord.utils.find(lambda r: r.name.lower() == role.lower(), ctx.guild.roles)
@@ -64,25 +65,26 @@ async def _set_availability(ctx, event_name, role, status, note):
             description = f"No role called `{role}`",
             colour = discord.Colour.red()
         )
-        await ctx.send(embed = embed)
+        await ctx.send(embed = embed, ephemeral = True)
         return
+    
     if role_obj not in ctx.author.roles:
         embed = create_embed(
             title = "⚠️ Role Mismatch",
             description = f"You do not have the `{role_obj.name}` role",
             colour = discord.Colour.red()
         )
-        await ctx.send(embed = embed)
+        await ctx.send(embed = embed, ephemeral = True )
         return
 
     status = status.capitalize()
     if status not in ("Yes", "No", "Maybe"):
         embed = create_embed(
             title = "⚠️ Invalid Status",
-            description = "Options are `Yes`, `No`, `Maybe` (caps matter)",
+            description = "Options are `Yes`, `No`, `Maybe`",
             colour = discord.Colour.red()
         )
-        await ctx.send(embed = embed)
+        await ctx.send(embed = embed, ephemeral = True)
         return
     upsert_availability(event[0], str(ctx.author.id), role_obj.name, status, note, str(ctx.guild.id))
     note_text = f"\nNote: {note}" if note else ""
@@ -91,7 +93,8 @@ async def _set_availability(ctx, event_name, role, status, note):
         description = f"Availability for **{event[1]}** as `{role_obj.name}` has been updated to: `{status}`\n_{note_text}_"
     )
     await ctx.send(embed = embed)
-    await ctx.message.delete()
+    if ctx.interaction is None:
+        await ctx.message.delete()
 
 
 async def _build_availability_breakdown(ctx_or_interaction, event, guild_id):

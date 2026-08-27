@@ -43,11 +43,20 @@ async def on_ready():
     else:
         print("Dev_GUILD_ID not set -- Skipping guild-scoped sync")
 
+# !sync -- Syncs commands from dev testing to VPS version
 @bot.command()
 @commands.is_owner()
 async def sync(ctx):
     synced = await bot.tree.sync()
     await ctx.send(f"Synced {len(synced)} command(s) globally. May take up to 1h to sync everywhere")
+
+# !clear_guild_sync -- Clears duplicate commands  
+@bot.command()
+@commands.is_owner()
+async def clear_guild_sync(ctx):
+    bot.tree.clear_commands(guild = ctx.guild)
+    await bot.tree.sync(guild = ctx.guild)
+    await ctx.send("Guild-specific command duplicates cleared")
 
 # Logs which command gets used, by which user, and in which channel
 @bot.before_invoke

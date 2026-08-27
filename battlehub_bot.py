@@ -15,7 +15,8 @@ import os
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
 LOG_CHANNEL_ID = int(os.getenv("LOG_CHANNEL_ID"))
-DEV_GUILD_ID = int(os.getenv("DEV_GUILD_ID"))
+dev_guild_id_raw = int(os.getenv("DEV_GUILD_ID"))
+DEV_GUILD_ID = int(dev_guild_id_raw) if dev_guild_id_raw else None
 
 # Database Initialisation
 bot_db.init_db()
@@ -34,9 +35,13 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user} - bot is online!")
-    guild = discord.Object(id = DEV_GUILD_ID)
-    bot.tree.copy_global_to(guild = guild)
-    await bot.tree.sync(guild = guild)
+    if DEV_GUILD_ID:
+        guild = discord.Object(id = DEV_GUILD_ID)
+        bot.tree.copy_global_to(guild = guild)
+        await bot.tree.sync(guild = guild)
+        print(f"Guild-synced commands to {DEV_GUILD_ID}")
+    else:
+        print("Dev_GUILD_ID not set -- Skipping guild-scoped sync")
 
 @bot.command()
 @commands.is_owner()

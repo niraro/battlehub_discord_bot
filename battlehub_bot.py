@@ -138,7 +138,7 @@ async def remove_event(ctx, name: str):
         await ctx.message.delete()
 
 # Uses !showevents -- Shows all upcoming events (name, date, and time)
-@bot.command()
+@bot.hybrid_command(description = "Shows all upcoming events")
 async def showevents(ctx):
     events = bot_db.get_all_events(str(ctx.guild.id))
     if not events:

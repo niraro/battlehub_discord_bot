@@ -207,23 +207,8 @@ async def removeavail(ctx, event_name: str, *, role: str = None):
         await ctx.message.delete()
 
 # Uses command !checkavail -- Check user availability for a specific role, or availability of all users on a specific date
-@bot.command()
-async def checkavail(ctx, *, target: str):
-    member = None
-    if target.startswith("<@") and target.endswith(">"):
-        user_id = target.strip("<@!>")
-        member = ctx.guild.get_member(int(user_id))
-    else:
-        member = discord.utils.find(lambda m: m.name.lower() == target.lower() or m.display_name.lower() == target.lower(), ctx.guild.members)
-    if not member:
-        embed = create_embed(
-            title = "⚠️ User Not Found",
-            description = f"Could not find {target}",
-            colour = discord.Colour.red()
-        )
-        await ctx.send(embed = embed)
-        return
-
+@bot.hybrid_command(description = "Check availability(ies) of a specified user")
+async def checkavail(ctx, *, member: discord.Member):
     entries = bot_db.get_availability_by_user(str(member.id), str(ctx.guild.id))
     if not entries:
         embed = create_embed(
@@ -231,7 +216,7 @@ async def checkavail(ctx, *, target: str):
             description = "No current availability"
         )
     else:
-        lines = [f"{name} ({role}) - {status}" + (f" _({note})_" if note else "") for name, ts, role, status, note in entries]
+        lines = [f"**{name}** ({role}) - {status}" + (f" _({note})_" if note else "") for name, ts, role, status, note in entries]
         embed = create_embed(
             title = f"📋 {member.display_name}'s Availability",
             description = "\n".join(lines)
@@ -239,7 +224,7 @@ async def checkavail(ctx, *, target: str):
     await ctx.send(embed = embed)
  
 # Uses command !checkevent -- Displays availability of users for specific roles on a given event
-@bot.command()
+@bot.hybrid_command(description = "Shows availability for specified event")
 async def checkevent(ctx, event_name):
     event = bot_db.get_event_from_list(event_name, str(ctx.guild.id))
     if not event:
@@ -248,7 +233,7 @@ async def checkevent(ctx, event_name):
             description = f"No event with the name **{event_name}**",
             colour = discord.Colour.red()
         )
-        await ctx.send(embed = embed)
+        await ctx.send(embed = embed, ephemeral = True)
         return
     embed = await helper._build_availability_breakdown(ctx, event, str(ctx.guild.id))
     await ctx.send(embed = embed)
@@ -427,7 +412,29 @@ async def remove_event_error(ctx, error):
                 colour = discord.Colour.red()
             )
         await ctx.send(embed = embed, ephemeral = True)
+
+@checkavail.error
+async def checkavail_error(ctx, error):
+    original = error
+    while hasattr(original, "original"):
+        original = original.original
     
+    if isinstance(original, commands.MemberNotFound):
+        embed = create_embed(
+            title = "⚠️ User Not Found",
+            description = f"Couldn't find `{original.argument}`. Try adding an '@' in front of their name, or use their user ID",
+            colour = discord.Colour.red()
+        )
+        await ctx.send(embed = embed, ephemeral = True)
+    elif isinstance(error, commands.MissingRequiredArgument):
+        embed = create_embed(
+            title = "⚠️ Missing Info",
+            description = "Try `!checkavail @user`, or `!checkavail user_id`",
+            colour = discord.Colour.red()
+        )
+        await ctx.send(embed = embed, ephemeral = True)       
+
+
 @checkdate.error  
 async def checkdate_error(ctx, error):
     original = error

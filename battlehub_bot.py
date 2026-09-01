@@ -48,7 +48,7 @@ async def on_ready():
 @commands.is_owner()
 async def sync(ctx):
     synced = await bot.tree.sync()
-    await ctx.send(f"Synced {len(synced)} command(s) globally. May take up to 1h to sync everywhere")
+    await ctx.send(f"Synced {len(synced)} command(s) globally. May take up to 1h to sync globally")
 
 # !clear_guild_sync -- Clears duplicate commands  
 @bot.command()
@@ -150,18 +150,18 @@ async def showevents(ctx):
 
 # Uses command !addavail -- User adds availability to their chosen event
 @bot.hybrid_command(description = "Add availability for a role for an event")
-async def addavail(ctx, event_name: str, role: str, status: str, *, note: str = None):
-    await helper._set_availability(ctx, event_name, role, status, note)
+async def addavail(ctx, event: str, role: str, status: str, *, note: str = None):
+    await helper._set_availability(ctx, event, role, status, note)
 
 # Uses command !adjustavail -- User adjusts availability of chosen event
 @bot.hybrid_command(description = "Adjust availability of a role for an event")
-async def adjustavail(ctx, event_name: str, role: str, status: str, *, note: str = None):
-    await helper._set_availability(ctx, event_name, role, status, note)
+async def adjustavail(ctx, event: str, role: str, status: str, *, note: str = None):
+    await helper._set_availability(ctx, event, role, status, note)
 
 # Uses command !removeavail -- User removes availability for chosen event
 @bot.hybrid_command(description = "Remove avaialability for one or more roles for an event")
-async def removeavail(ctx, event_name: str, *, role: str = None):
-    event = bot_db.get_event_from_list(event_name, str(ctx.guild.id))
+async def removeavail(ctx, event: str, *, role: str = None):
+    event = bot_db.get_event_from_list(event, str(ctx.guild.id))
     if not event:
         embed = create_embed(
             title = "⚠️ Event Not Found",
@@ -433,7 +433,6 @@ async def checkavail_error(ctx, error):
             colour = discord.Colour.red()
         )
         await ctx.send(embed = embed, ephemeral = True)       
-
 
 @checkdate.error  
 async def checkdate_error(ctx, error):

@@ -1,15 +1,16 @@
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 from dotenv import load_dotenv
+import os
+import time
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+import battlehub_bot_ui as bh_ui
 from unix_timestamp import get_discord_timestamp
 from embed import create_embed, create_embed_with_footer
-from battlehub_bot_ui import EventSelectView, MonthSelectView
 import bot_db as bot_db
 import command_helpers as helper
 from battlehub_commands import BUILTIN_COMMANDS
-import os
 
 # Load the token from the .env file
 load_dotenv()
@@ -29,7 +30,7 @@ intents.members = True
 intents.presences = True 
 
 #Adding prefix to trigger bot (e.g. !news)
-bot = commands.Bot(command_prefix="!", intents=intents)
+bot = commands.Bot(command_prefix = "!", intents = intents)
 
 # Tells user that bot is online
 @bot.event
@@ -42,6 +43,9 @@ async def on_ready():
         print(f"Guild-synced commands to {DEV_GUILD_ID}")
     else:
         print("Dev_GUILD_ID not set -- Skipping guild-scoped sync")
+        
+    if not check_stale_tickets.is_running():
+        check_stale_tickets.start()
 
 # !sync -- Syncs commands from dev testing to VPS version
 @bot.command()
@@ -63,7 +67,187 @@ async def clear_guild_sync(ctx):
 async def before_command_use(ctx):
     await helper.log_command_usage(ctx, LOG_CHANNEL_ID, create_embed)
 
-########################## Bot Commands ##############################
+############################### Ticket Event(s) & Commands #######################################
+
+@bot.event
+async def on_message(message):
+    if message.author.bot:
+        return
+    if isinstance(message.channel, discord.DMChannel):
+        await handle_ticket_dm(message)
+        return
+    await bot.process_commands(message)
+
+async def handle_ticket_dm(message):
+    user = message.author
+    mutual_servers = [g for g in bot.guilds if g.get_member(user.id) is not None]
+    
+    if not mutual_servers:
+        await user.send("Cannot open ticket as we have no mutual server(s)")
+        return
+    if len(mutual_servers) == 1:
+        await helper.route_ticket_message(bot, message, mutual_servers[0])
+        return
+    
+    # If multiple servers detected
+    view = bh_ui.ServerSelectView(mutual_servers, message)
+    await user.send("Which server is this ticket for?", view = view)
+    
+@bot.hybrid_command(description = "Reply to the user in the ticket thread")
+#@commands.has_any_role("Announcer", "Admin")
+async def reply(ctx, *, message: str):
+    if not isinstance(ctx.channel, discord.Thread):
+        embed = create_embed(
+            title = "⚠️ Wrong Channel",
+            description = "This command only works in a ticket thread",
+            colour = discord.Colour.red()
+        )
+        await ctx.send(embed = embed, ephemeral = True)
+        return
+    
+    ticket = bot_db.get_ticket_by_thread(str(ctx.channel.id))
+    if ticket is None:
+        embed = create_embed(
+            title = "⚠️ Invalid Ticket",
+            description = "This thread is not linked to an open ticket",
+            colour = discord.Colour.red()
+        )
+        await ctx.send(embed = embed, ephemeral = True)
+        return
+    
+    ticket_id, discord_id, status = ticket
+    if status != "open":
+        embed = create_embed(
+            title = "⚠️ Ticket Closed",
+            description = "This ticket is already closed",
+            colour = discord.Colour.red()
+        )
+        await ctx.send(embed = embed, ephemeral = True)
+        return
+    
+    user = bot.get_user(int(discord_id))
+    if user is None:
+        embed = create_embed(
+            title = "⚠️ User Not Found",
+            description = "Could not find user of this ticket",
+            colour = discord.Colour.red()
+        )
+        await ctx.send(embed = embed, ephemeral = True)
+        return
+    
+    dm_embed = create_embed(
+        title = "💬 Staff",
+        description = message
+    )
+    try:
+        await user.send(embed = dm_embed)
+    except discord.Forbidden:
+        embed = create_embed(
+            title = "⚠️ Message Not Delivered",
+            description = "Could not send reply. User either has DMs disabled or has blocked the bot",
+            colour = discord.Colour.red()
+        )
+        await ctx.send(embed = embed, ephemeral = True)
+        return
+    
+    bot_db.update_ticket_activity(str(ctx.channel.id), int(time.time()))
+    confirm_embed = create_embed(
+        title = "✅ Reply Sent",
+        description = message
+    )
+    await ctx.send(embed = confirm_embed)
+    
+@bot.hybrid_command(description = "Closes ticket")
+#@commands.has_any_role("Announcer", "Admin")
+async def closeticket(ctx):
+    if not isinstance(ctx.channel, discord.Thread):
+        embed = create_embed(
+            title = "⚠️ Wrong Channel",
+            description = "This command only works in a ticket thread",
+            colour = discord.Colour.red()
+        )
+        await ctx.send(embed = embed, ephemeral = True)
+        return     
+
+    ticket = bot_db.get_ticket_by_thread(str(ctx.channel.id))
+    if ticket is None:
+        embed = create_embed(
+            title = "⚠️ Invalid Ticket",
+            description = "This thread is not linked to an open ticket",
+            colour = discord.Colour.red()
+        )
+        await ctx.send(embed = embed, ephemeral = True)
+        return
+    
+    ticket_id, discord_id, status = ticket
+    if status != "open":
+        embed = create_embed(
+            title = "⚠️ Ticket Closed",
+            description = "This ticket is already closed",
+            colour = discord.Colour.red()
+        )
+        await ctx.send(embed = embed, ephemeral = True)
+        return
+    
+    bot_db.close_ticket(ticket_id)
+    await helper.update_ticket_board(bot, str(ctx.guild.id))
+    user = bot.get_user(int(discord_id))
+    if user is not None:
+        close_embed = create_embed(
+            title = "🔒 Ticket Closed",
+            description = "Ticket has been closed by staff. DM again to open a new ticket",
+            colour = discord.Colour.red()
+        )
+        try:
+            await user.send(embed = close_embed)
+        except discord.Forbidden:
+            pass # Closes ticket even if user has closed DMs
+    confirm_embed = create_embed(
+            title = "🔒 Ticket Closed",
+            description = "Ticket has been closed and archived",
+            colour = discord.Colour.red()
+    )
+    await ctx.send(embed = confirm_embed)
+    await ctx.channel.edit(archived = True, locked = True)
+    
+TICKET_INACTIVITY_SECONDS = 120 # Temporarily 2 minute for testing
+
+@tasks.loop(minutes = 1) # Temporarily set to check every minute
+async def check_stale_tickets():
+    cutoff = int(time.time()) - TICKET_INACTIVITY_SECONDS
+    stale_tickets = bot_db.get_stale_tickets(cutoff)
+    
+    for ticket_id, guild_id, discord_id, thread_id, ticket_number in stale_tickets:
+        bot_db.close_ticket(ticket_id)
+        await helper.update_ticket_board(bot, guild_id)
+        thread = bot.get_channel(int(thread_id))
+        if thread is not None:
+            embed = create_embed(
+                title = "🔒 Ticket Auto-Closed",
+                description = f"Ticket #{ticket_number} has automatically closed after 72 hours of inactivity"
+            )
+            await thread.send(embed = embed)
+            try:
+                await thread.edit(archived = True, locked = True)
+            except discord.HTTPException:
+                pass
+            
+        user = bot.get_user(int(discord_id))
+        if user is not None:
+            close_embed = create_embed(
+                title = "🔒 Ticket Closed",
+                description = f"Your current ticket: Ticket #{ticket_number} was automatically closed due to inactivity. DM again to open a new ticket"
+            )
+            try:
+                await user.send(embed = close_embed)
+            except discord.Forbidden:
+                pass
+
+@check_stale_tickets.before_loop
+async def before_check_stale_tickets():
+    await bot.wait_until_ready()
+        
+############################### General Commands #####################################
 
 # Uses !post for command -- Bot takes input message, posts it, and removes original command
 @bot.hybrid_command(description = "Announcement/news posts")  
@@ -225,12 +409,12 @@ async def checkavail(ctx, *, member: discord.Member):
  
 # Uses command !checkevent -- Displays availability of users for specific roles on a given event
 @bot.hybrid_command(description = "Shows availability for specified event")
-async def checkevent(ctx, event_name):
-    event = bot_db.get_event_from_list(event_name, str(ctx.guild.id))
+async def checkevent(ctx, event):
+    event = bot_db.get_event_from_list(event, str(ctx.guild.id))
     if not event:
         embed = create_embed(
             title = "⚠️ Event Not Found",
-            description = f"No event with the name **{event_name}**",
+            description = f"No event with the name **{event}**",
             colour = discord.Colour.red()
         )
         await ctx.send(embed = embed, ephemeral = True)
@@ -279,7 +463,7 @@ async def checkdate(ctx, date: str, timezone: str):
         return
     
     # Multiple events on a given date, using dropdown
-    view = EventSelectView(events, str(ctx.guild.id))
+    view = bh_ui.EventSelectView(events, str(ctx.guild.id))
     embed = create_embed(
         title = "📅 Multiple Events Found",
         description = "Select the event below to view who's available"
@@ -289,7 +473,7 @@ async def checkdate(ctx, date: str, timezone: str):
 # Uses command !checkcalendar -- Allows user to check events for chosen month    
 @bot.hybrid_command(description = "Check event(s) for the chosen month")
 async def checkcalendar(ctx, timezone: str):
-    view = MonthSelectView(timezone, str(ctx.guild.id))
+    view = bh_ui.MonthSelectView(timezone, str(ctx.guild.id))
     embed = create_embed(
         title = "📅 Calendar",
         description = "Select a month to view its events"
@@ -331,7 +515,7 @@ async def removecommand(ctx, *, name):
 @bot.command()
 #@commands.has_any_role("Announcer", "Admin")
 async def bhcommands(ctx):
-    lines = [f"`!{name}` -> {note}\n" for name, note in BUILTIN_COMMANDS]
+    lines = [f"`{name}` -> {note}\n" for name, note in BUILTIN_COMMANDS]
     
     custom_command = bot_db.get_all_commands(str(ctx.guild.id))
     if not custom_command:
@@ -340,10 +524,20 @@ async def bhcommands(ctx):
             description = "No commands currently in the list"
         )
     else:
-        lines = [f"**`!{name}`** -> {note}" for name, note in custom_command]
+        lines = [f"**`{name}`** -> {note}" for name, note in custom_command]
     embed = create_embed(
         title = "📖 Command List",
         description = "\n".join(lines)
+    )
+    await ctx.send(embed = embed)
+    
+@bot.hybrid_command(description = "Sets channel for support tickets")
+#@commands.has_any_role("Announcer", "Admin")
+async def setticketschannel(ctx, channel: discord.TextChannel):
+    bot_db.set_tickets_channel(str(ctx.guild.id), str(channel.id))
+    embed = create_embed(
+        title = "✅ Tickets Channel Set",
+        description = f"New tickets will now appear in {channel.mention}"
     )
     await ctx.send(embed = embed)
         
@@ -466,6 +660,25 @@ async def checkcalendar_error(ctx, error):
             colour = discord.Colour.red()
         )
     await ctx.send(embed = embed, ephemeral = True)
-        
+    
+@reply.error
+async def reply_error(ctx, error):
+    if isinstance(error, commands.MissingRequiredArgument):
+        embed = create_embed(
+            title = "⚠️ Missing Info",
+            description = "Missing message in `/reply`",
+            colour = discord.Colour.red()
+        )
+        await ctx.send(embed = embed, ephemeral = True)        
+
+@closeticket.error
+async def closeticket_error(ctx, error):
+    if isinstance(error, commands.MissingRequiredArgument):
+        embed = create_embed(
+            title = "⚠️ Missing Info",
+            description = "To close a ticket, use `/closeticket`",
+            colour = discord.Colour.red()
+        )
+        await ctx.send(embed = embed, ephemeral = True)      
         
 bot.run(TOKEN)

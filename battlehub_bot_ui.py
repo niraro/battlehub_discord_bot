@@ -1,10 +1,75 @@
 import discord
-from command_helpers import _build_availability_breakdown
 from datetime import datetime
 from calendar import monthrange
 from zoneinfo import ZoneInfo
 from bot_db import get_events_by_month
 from embed import create_embed
+import command_helpers as helper
+
+class ServerSelect(discord.ui.Select):
+    def __init__(self, guilds, original_message):
+        options = [discord.SelectOption(label = g.name, value = str(g.id)) for g in guilds]
+        super().__init__(placeholder = "Choose a server: ", options = options)
+        self.guilds_lookup = {str(g.id): g for g in guilds}
+        self.original_message = original_message
+    
+    async def callback(self, interaction: discord.Interaction):
+        selected_server = self.guilds_lookup[self.values[0]]
+        await helper.route_ticket_message(interaction.client, self.original_message, selected_server)
+        await interaction.response.send_message(f"You have chosen to create a ticket for **{selected_server}**", ephemeral = True)
+        
+class ServerSelectView(discord.ui.View):
+    def __init__(self, guilds, original_message):
+        super().__init__(timeout = 300) # 5 minute (300 seconds) timer for user to choose server
+        self.add_item(ServerSelect(guilds, original_message))
+
+class TicketModal(discord.ui.Modal, title = "Open a Ticket"):
+    def __init__(self, bot, dm_message, guild):
+        super().__init__()
+        self.bot = bot
+        self.dm_message = dm_message
+        self.guild = guild
+        
+        self.title_input = discord.ui.TextInput(
+            label = "What do you need help with?",
+            placeholder = "Short summary of your inquiry",
+            max_length = 100
+        )
+        self.description_input = discord.ui.TextInput(
+            label = "Description of inquiry",
+            placeholder = "Provide more details of your inquiry here",
+            style = discord.TextStyle.paragraph,
+            default = dm_message.content or "",
+            required = False
+        )
+        self.add_item(self.title_input)
+        self.add_item(self.description_input)
+    
+    async def on_submit(self, interaction: discord.Interaction):
+        await helper.create_ticket_from_modal(
+            self.bot,
+            self.dm_message,
+            self.guild,
+            str(self.title_input),
+            str(self.description_input)
+        )
+        await interaction.response.send_message(f"Ticket **{self.title_input}** submitted!")
+
+class TicketStartView(discord.ui.View):
+    def __init__(self, bot, dm_message, guild):
+        super().__init__(timeout = 300)
+        self.bot = bot
+        self.dm_message = dm_message
+        self.guild = guild
+    
+    @discord.ui.button(
+        label = "Create Ticket",
+        style = discord.ButtonStyle.primary,
+        emoji = "🎫"
+    )
+    async def start_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(TicketModal(self.bot, self.dm_message, self.guild))
+
 
 class EventSelect(discord.ui.Select):
     def __init__(self, events, guild_id):
@@ -15,7 +80,7 @@ class EventSelect(discord.ui.Select):
     
     async def callback(self, interaction: discord.Interaction):
         selected_event = self.events_lookup[self.values[0]]
-        embed = await _build_availability_breakdown(interaction, selected_event, self.guild_id)
+        embed = await helper._build_availability_breakdown(interaction, selected_event, self.guild_id)
         await interaction.response.send_message(embed = embed)
         
 class EventSelectView(discord.ui.View):

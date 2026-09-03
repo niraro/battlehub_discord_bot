@@ -1,8 +1,11 @@
 import discord
-from bot_db import get_availability_by_event, upsert_availability, get_event_from_list
-from embed import create_embed
 import re
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+import time
+import battlehub_bot_ui as bh_ui
+from zoneinfo import ZoneInfo
+import bot_db as bot_db
+from embed import create_embed
+
 
 DATE_REGEX = re.compile(r"^\d{2}-\d{2}-\d{4}$")
 TIME_REGEX = re.compile(r"^\d{2}:\d{2}$")
@@ -20,7 +23,7 @@ async def log_command_usage(ctx, log_channel_id, create_embed_fn):
         embed = create_embed(
             title = "📝 Command Used",
             description = (
-                f"**Command:** `!{ctx.command}`\n"
+                f"**Command:** `{ctx.command}`\n"
                 f"**User:** {ctx.author.mention} (`{ctx.author}`)\n"
                 f"**Channel:** {ctx.channel.mention}"
             )
@@ -28,6 +31,117 @@ async def log_command_usage(ctx, log_channel_id, create_embed_fn):
         await log_channel.send(embed = embed)
     except Exception as e:
         print(f"Command logging failed: {e}")
+
+# Routes user message to selected server
+async def route_ticket_message(bot, message, guild):
+    guild_id = str(guild.id)
+    discord_id = str(message.author.id)
+    now = int(time.time())
+    existing = bot_db.get_open_ticket(guild_id, discord_id)
+    
+    # Open/exisitng ticket case
+    if existing:
+        ticket_id, ticket_number, thread_id = existing
+        thread = bot.get_channel(int(thread_id))
+        if thread is None:
+            await message.author.send("Could not find your ticket. Please try again")
+            return
+        embed = create_embed(
+            title = f"Ticket #{ticket_number}",
+            description = message.content or "*[attachment/no text]*"
+        )
+        await thread.send(embed = embed)
+        bot_db.update_ticket_activity(thread_id, now)
+        await message.author.send(f"Message added to current ticket: **Ticket #{ticket_number}**")
+        return
+        
+    # If no exisiting open tickets, create new one
+    tickets_channel_id = bot_db.get_tickets_channel(guild_id)
+    if tickets_channel_id is None:
+        await message.author.send("This server hasn't set up a tickets channel yet. Please contact staff directly, or wait until a ticket channel is set up")
+        return
+   
+    view = bh_ui.TicketStartView(bot, message, guild)
+    await message.author.send("Click below to create your ticket:", view = view)
+
+async def update_ticket_board(bot, guild_id):
+    tickets_channel_id = bot_db.get_tickets_channel(guild_id)
+    if tickets_channel_id is None:
+        return
+    channel = bot.get_channel(int(tickets_channel_id))
+    if channel is None:
+        return
+    
+    open_tickets = bot_db.get_open_tickets_for_board(guild_id)
+    closed_count = bot_db.get_closed_ticket_count(guild_id)
+    
+    if not open_tickets:
+        open_lines = "Currently no open tickets"
+    else:
+        lines = []
+        for ticket_number, title, thread_id in open_tickets:
+            thread = bot.get_channel(int(thread_id))
+            link = thread.jump_url if thread else "Thread unavailable"
+            lines.append(f"**#{ticket_number}**: {title or 'Untitled'} --> {link}")
+        open_lines = "\n".join(lines)
+    
+    embed = create_embed(
+        title = "🎫 Ticket Board",
+        description = f"**Open Tickets**\n{open_lines}\n\n**Closed Tickets:** {closed_count} total"
+    )
+    
+    board_message_id = bot_db.get_board_message_id(guild_id)
+    if board_message_id:
+        try:
+            message = await channel.fetch_message(int(board_message_id))
+            await message.edit(embed = embed)
+            return
+        except discord.NotFound:
+            pass # Creates new message board if deleted or non-existent
+    
+    new_message = await channel.send(embed = embed)
+    bot_db.set_board_message_id(guild_id, str(new_message.id))
+    
+async def notify_ticket_staff(bot, guild, thread):
+    tickets_channel_id = bot_db.get_tickets_channel(str(guild.id))
+    channel = bot.get_channel(int(tickets_channel_id))
+    if channel is None:
+        return
+    role_names = ("Announcer", "Admin") 
+    mentions = [r.mention for r in guild.roles if r.name in role_names]
+    if not mentions:
+        return
+    await channel.send(f"{' '.join(mentions)} New ticket: {thread.jump_url}", delete_after = 10)
+   
+async def create_ticket_from_modal(bot, dm_message, guild, title, description):
+    guild_id = str(guild.id)
+    discord_id = str(dm_message.author.id)
+    now = int(time.time())
+        
+    tickets_channel_id = bot_db.get_tickets_channel(guild_id)
+    tickets_channel = bot.get_channel(int(tickets_channel_id))
+    if tickets_channel is None:
+        await dm_message.author.send("Couldn't find the configured tickets channel. Please contact staff directly")
+        return    
+    
+    ticket_number = bot_db.get_next_ticket_number(guild_id)
+    thread_name = f"Ticket #{ticket_number} -- {title}" [:100]
+    thread = await tickets_channel.create_thread(
+        name = thread_name,
+        type = discord.ChannelType.private_thread
+    )
+    
+    bot_db.create_ticket(guild_id, discord_id, ticket_number, str(thread.id), title, now)
+    
+    # Embed seen by staff in newly created ticket thread
+    intro_embed = create_embed(
+        title = f"🎫 Ticket #{ticket_number}: {title}",
+        description = f"**User:** {dm_message.author.mention} (`{dm_message.author}`)\n **Inquiry Description:**\n{description or '*No description provided*'}"
+    )
+    await thread.send(embed = intro_embed)
+    await dm_message.author.send(f"Your ticket has been created -- **Ticket #{ticket_number}**. Staff will respond ASAP")
+    await notify_ticket_staff(bot, guild, thread)
+    await update_ticket_board(bot, str(guild.id))
 
 
 # !addevent pattern detector of an unquoted mult-word event name. Pushes a valid date/time/timezone one slot to the right
@@ -48,7 +162,7 @@ def looks_like_shifted_args(time_str, tz_name):
 
 
 async def _set_availability(ctx, event_name, role, status, note):
-    event = get_event_from_list(event_name, str(ctx.guild.id))
+    event = bot_db.get_event_from_list(event_name, str(ctx.guild.id))
     if not event:
         embed = create_embed(
             title = "⚠️ Event Not Found", 
@@ -86,7 +200,7 @@ async def _set_availability(ctx, event_name, role, status, note):
         )
         await ctx.send(embed = embed, ephemeral = True)
         return
-    upsert_availability(event[0], str(ctx.author.id), role_obj.name, status, note, str(ctx.guild.id))
+    bot_db.upsert_availability(event[0], str(ctx.author.id), role_obj.name, status, note, str(ctx.guild.id))
     note_text = f"\nNote: {note}" if note else ""
     embed = create_embed(
         title = "✅ Availability Updated",
@@ -98,7 +212,7 @@ async def _set_availability(ctx, event_name, role, status, note):
 
 
 async def _build_availability_breakdown(ctx_or_interaction, event, guild_id):
-    entries = get_availability_by_event(event[0], guild_id)
+    entries = bot_db.get_availability_by_event(event[0], guild_id)
     if not entries:
         return create_embed(
             title = f"📋 Staff Availability — **{event[1]}**",

@@ -46,10 +46,13 @@ async def route_ticket_message(bot, message, guild):
         if thread is None:
             await message.author.send("Could not find your ticket. Please try again")
             return
+        description, image_url = ticket_images(message)
         embed = create_embed(
             title = f"Ticket #{ticket_number}",
-            description = message.content or "*[attachment/no text]*"
+            description = description
         )
+        if image_url:
+            embed.set_image(url = image_url)
         await thread.send(embed = embed)
         bot_db.update_ticket_activity(thread_id, now)
         await message.author.send(f"Message added to current ticket: **Ticket #{ticket_number}**")
@@ -63,6 +66,24 @@ async def route_ticket_message(bot, message, guild):
    
     view = bh_ui.TicketStartView(bot, message, guild)
     await message.author.send("Click below to create your ticket:", view = view)
+    
+def ticket_images(message):
+    text = message.content or ""
+    image_url = None
+    extra_links = []
+    
+    for attachment in message.attachments:
+        content_type = (attachment.content_type or "").lower()
+        if image_url is None and (content_type.startswith("image/")):
+            image_url = attachment.url
+        else:
+            extra_links.append(attachment.url)
+            
+    if extra_links:
+        text += "\n\n" + "\n".join(extra_links)
+    if not text.strip() and not image_url:
+        text = "*[No text/attachment]*"
+    return text, image_url
 
 async def update_ticket_board(bot, guild_id):
     tickets_channel_id = bot_db.get_tickets_channel(guild_id)
@@ -134,14 +155,18 @@ async def create_ticket_from_modal(bot, dm_message, guild, title, description):
     bot_db.create_ticket(guild_id, discord_id, ticket_number, str(thread.id), title, now)
     
     # Embed seen by staff in newly created ticket thread
+    _, image_url = ticket_images(dm_message)
     intro_embed = create_embed(
         title = f"🎫 Ticket #{ticket_number}: {title}",
         description = f"**User:** {dm_message.author.mention} (`{dm_message.author}`)\n **Inquiry Description:**\n{description or '*No description provided*'}"
     )
+    if image_url:
+        intro_embed.set_image(url = image_url)
     await thread.send(embed = intro_embed)
     await dm_message.author.send(f"Your ticket has been created -- **Ticket #{ticket_number}**. Staff will respond ASAP")
     await notify_ticket_staff(bot, guild, thread)
     await update_ticket_board(bot, str(guild.id))
+
 
 
 # !addevent pattern detector of an unquoted mult-word event name. Pushes a valid date/time/timezone one slot to the right

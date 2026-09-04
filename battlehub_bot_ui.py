@@ -46,6 +46,7 @@ class TicketModal(discord.ui.Modal, title = "Open a Ticket"):
         self.add_item(self.description_input)
     
     async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral = True)
         await helper.create_ticket_from_modal(
             self.bot,
             self.dm_message,

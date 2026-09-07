@@ -1,4 +1,5 @@
 import discord
+from discord import app_commands
 from discord.ext import commands, tasks
 from dotenv import load_dotenv
 import os
@@ -11,11 +12,13 @@ from embed import create_embed, create_embed_with_footer
 import bot_db as bot_db
 import command_helpers as helper
 from battlehub_commands import BUILTIN_COMMANDS
+import log_docs as logs
+import reaction_roles as react
 
 # Load the token from the .env file
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
-LOG_CHANNEL_ID = int(os.getenv("LOG_CHANNEL_ID"))
+#LOG_CHANNEL_ID = int(os.getenv("LOG_CHANNEL_ID"))
 dev_guild_id_raw = os.getenv("DEV_GUILD_ID")
 DEV_GUILD_ID = int(dev_guild_id_raw) if dev_guild_id_raw else None
 
@@ -65,7 +68,7 @@ async def clear_guild_sync(ctx):
 # Logs which command gets used, by which user, and in which channel
 @bot.before_invoke
 async def before_command_use(ctx):
-    await helper.log_command_usage(ctx, LOG_CHANNEL_ID, create_embed)
+    await logs.log_command_usage(ctx, create_embed)
 
 ############################### Ticket Event(s) & Commands #######################################
 
@@ -253,7 +256,10 @@ async def before_check_stale_tickets():
 @bot.hybrid_command(description = "Announcement/news posts")  
 #@commands.has_any_role("Announcer", "Admin")
 async def post(ctx, *, message: str):
-    embed = create_embed_with_footer(title = "📢 Announcement", description = message)
+    embed = create_embed_with_footer(
+        title = "📢 Announcement", 
+        description = message
+    )
     await ctx.send(embed = embed, content = "")
     await ctx.message.delete() if ctx.interaction is None else None
     
@@ -530,6 +536,8 @@ async def bhcommands(ctx):
         description = "\n".join(lines)
     )
     await ctx.send(embed = embed)
+
+################################ Moderation Tools ##################################
     
 @bot.hybrid_command(description = "Sets channel for support tickets")
 #@commands.has_any_role("Announcer", "Admin")
@@ -540,7 +548,73 @@ async def setticketschannel(ctx, channel: discord.TextChannel):
         description = f"New tickets will now appear in {channel.mention}"
     )
     await ctx.send(embed = embed)
-        
+    
+@bot.hybrid_command(description = "Set channel for chosen log(s)")
+#@commands.has_any_role("Announcer", "Admin")
+@app_commands.choices(log = logs.LOG_TYPES)
+async def setlogs(ctx, log: str, channel: discord.TextChannel):
+    valid_types = [c.value for c in logs.LOG_TYPES]
+    if log not in valid_types:
+        embed = create_embed(
+            title = "⚠️ Invalid Log Type",
+            description = f"Log does not exist. Make sure to chose one of: \n{', '.join(valid_types)}",
+            colour = discord.Colour.red()
+        )
+        await ctx.send(embed = embed, ephemeral = True)
+    bot_db.set_log_channel(str(ctx.guild.id), log, str(channel.id))
+    embed = create_embed(
+        title = "✅ Log Channel Set ",
+        description = f"**{log}** logs will now be documented in {channel.mention}"       
+    )
+    await ctx.send(embed = embed)
+
+@bot.hybrid_command(description = "View current log channel configuration")
+#@commands.has_any_role("Announcer", "Admin")
+async def viewlogs(ctx):
+    settings = bot_db.get_all_log_settings(str(ctx.guild.id))
+    if not settings:
+        embed = create_embed(
+            title = "📋 Log Settings",
+            description = "No log channels configured yet"
+        )
+    else:
+        lines = [f"**{log}:** <#{channel_id}>" for log, channel_id in settings]
+        embed = create_embed(
+            title = "📋 Log Settings",
+            description = "\n".join(lines)
+        )
+    await ctx.send(embed = embed)
+
+@bot.event
+async def on_member_join(member):
+    await logs.member_join(bot, member)
+
+@bot.event
+async def on_member_remove(member):
+    await logs.member_leave(bot, member)
+    
+@bot.event
+async def on_member_ban(guild, user):
+    await logs.member_ban(bot, guild, user)
+
+@bot.event
+async def on_member_update(before, after):
+    await logs.role_update(bot, before, after)
+    
+############################# REACTION TESTING ##############################
+
+@bot.hybrid_command(description = "Post a test reaction-role embed")
+async def testreactrole(ctx, head_coach: discord.Role, hallo: discord.Role):
+    await react.test_reaction_role(ctx, head_coach, hallo)
+    
+@bot.event
+async def on_raw_reaction_add(payload):
+    await react.react_role(bot, payload, adding = True)
+
+@bot.event
+async def on_raw_reaction_remove(payload):
+    await react.react_role(bot, payload, adding = False)
+          
 ############################# Error Checks for Commands #########################################
 
 @post.error
@@ -679,6 +753,16 @@ async def closeticket_error(ctx, error):
             description = "To close a ticket, use `/closeticket`",
             colour = discord.Colour.red()
         )
-        await ctx.send(embed = embed, ephemeral = True)      
+        await ctx.send(embed = embed, ephemeral = True)
+        
+@setlogs.error
+async def setlogs_error(ctx, error):
+    if isinstance(error, commands.MissingRequiredArgument):
+        embed = create_embed(
+            title = "⚠️ Missing Info",
+            description = "To set a log channel, use `/setlogs`",
+            colour = discord.Colour.red()
+        )
+        await ctx.send(embed = embed, ephemeral = True)        
         
 bot.run(TOKEN)

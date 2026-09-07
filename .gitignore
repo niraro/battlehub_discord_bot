@@ -2,5 +2,5 @@
 __pycache__/
 *.pyc
 bot_data.db
-log.md
+devlog.md
 to_do.md

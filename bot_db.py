@@ -52,6 +52,14 @@ def init_db():
             tickets_channel_id TEXT NOT NULL,
             board_message_id TEXT
         )           
+""")
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS log_settings (
+            guild_id TEXT NOT NULL,
+            log_type TEXT NOT NULL,
+            channel_id TEXT NOT NULL,
+            PRIMARY KEY (guild_id, log_type)
+        )  
 """)                      
     conn.commit()
     conn.close()
@@ -348,4 +356,35 @@ def set_board_message_id(guild_id, message_id):
     conn.commit()
     conn.close()
     
+
+
+def set_log_channel(guild_id, log_type, channel_id):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO log_settings (guild_id, log_type, channel_id) VALUES (?, ?, ?) "
+        "ON CONFLICT(guild_id, log_type) DO UPDATE SET channel_id = excluded.channel_id",
+        (guild_id, log_type, channel_id)
+    )
+    conn.commit()
+    conn.close()
     
+def get_log_channel(guild_id, log_type):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT channel_id FROM log_settings WHERE guild_id = ? AND log_type = ?", (guild_id, log_type)
+    )
+    row = cursor.fetchone()
+    conn.close()
+    return row[0] if row else None
+
+def get_all_log_settings(guild_id):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT log_type, channel_id FROM log_settings WHERE guild_id = ?", (guild_id,)
+    )
+    rows = cursor.fetchall()
+    conn.close()
+    return rows

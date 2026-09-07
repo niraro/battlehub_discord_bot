@@ -1,36 +1,14 @@
 import discord
 import re
 import time
+import asyncio
 import battlehub_bot_ui as bh_ui
 from zoneinfo import ZoneInfo
 import bot_db as bot_db
 from embed import create_embed
 
-
 DATE_REGEX = re.compile(r"^\d{2}-\d{2}-\d{4}$")
 TIME_REGEX = re.compile(r"^\d{2}:\d{2}$")
-
-LOG_EXCLUDED_COMMANDS = set()
-
-# Audit log for command usage
-async def log_command_usage(ctx, log_channel_id, create_embed_fn):
-    if ctx.command and ctx.command.name in LOG_EXCLUDED_COMMANDS:
-        return
-    try:
-        log_channel = ctx.bot.get_channel(log_channel_id)
-        if log_channel_id is None:
-            return
-        embed = create_embed(
-            title = "📝 Command Used",
-            description = (
-                f"**Command:** `{ctx.command}`\n"
-                f"**User:** {ctx.author.mention} (`{ctx.author}`)\n"
-                f"**Channel:** {ctx.channel.mention}"
-            )
-        )
-        await log_channel.send(embed = embed)
-    except Exception as e:
-        print(f"Command logging failed: {e}")
 
 # Routes user message to selected server
 async def route_ticket_message(bot, message, guild):
@@ -185,7 +163,6 @@ def looks_like_shifted_args(time_str, tz_name):
         return False
     return True
 
-
 async def _set_availability(ctx, event_name, role, status, note):
     event = bot_db.get_event_from_list(event_name, str(ctx.guild.id))
     if not event:
@@ -261,3 +238,16 @@ async def _build_availability_breakdown(ctx_or_interaction, event, guild_id):
         title = f"📋 Staff Availability — **{event[1]}**",
         description = "\n".join(lines).strip()
     )
+    
+async def find_audit_log_entry(guild, action, target, within_seconds = 15, retries = 3, delay = 0.5):
+    for _ in range(retries):
+        try:
+            async for entry in guild.audit_logs(action = action, limit = 5):
+                if entry.target and entry.target.id == target.id:
+                    age = (discord.utils.utcnow() - entry.created_at).total_seconds()
+                    if age <= within_seconds:
+                        return entry
+        except discord.Forbidden:
+            return None
+        await asyncio.sleep(delay)
+    return None

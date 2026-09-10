@@ -2,9 +2,11 @@ import discord
 from datetime import datetime
 from calendar import monthrange
 from zoneinfo import ZoneInfo
-from bot_db import get_events_by_month
+import bot_db as bot_db
 from embed import create_embed
 import command_helpers as helper
+import log_docs as logs
+from log_docs import TIMEOUT_OPTIONS
 
 class ServerSelect(discord.ui.Select):
     def __init__(self, guilds, original_message):
@@ -118,7 +120,7 @@ class MonthSelect(discord.ui.Select):
         
         start_ts = int(month_start.timestamp())
         end_ts = int(month_end.timestamp())
-        events = get_events_by_month(start_ts, end_ts, self.guild_id)
+        events = bot_db.get_events_by_month(start_ts, end_ts, self.guild_id)
         
         if not events:
                 embed = create_embed(
@@ -137,4 +139,75 @@ class MonthSelectView(discord.ui.View):
     def __init__(self, tz_name = "America/Edmonton", guild_id = None):
         super().__init__(timeout = 60)
         self.add_item(MonthSelect(tz_name, guild_id))
-            
+
+
+class FlaggedMessageView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout = None)
+    
+    @discord.ui.button(
+        label = "Approve",
+        style = discord.ButtonStyle.success,
+        emoji = "✅"
+    )
+    async def approve(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await logs.review_decision(interaction, "approved")
+        
+    @discord.ui.button(
+        label = "Block + Timeout",
+        style = discord.ButtonStyle.danger,
+        emoji = "🚫"        
+    )
+    async def block(self, interaction: discord.Interaction, button: discord.ui.Button):
+        review = bot_db.get_pending_review(str(interaction.message.id))
+        if review is None:
+            await interaction.response.send_message("Couldn't find review", ephemeral = True)
+            return
+        review_id, guild_id, author_id, channel_id, content, matched_terms, status = review
+        if status != "pending":
+            await interaction.response.send_message("A staff member has already reviewed this flag", ephemeral = True)
+            return
+        strikes = bot_db.get_strike_count(guild_id, author_id)
+        if strikes >= 2:
+            await interaction.response.send_modal(BlockReasonModal(interaction.message.id, None, is_ban = True))
+        else:      
+            view = TimeoutDurationSelectView(interaction.message.id)
+            await interaction.response.send_message("Select a timeout duration:", view = view, ephemeral = True)
+        
+class BlockReasonModal(discord.ui.Modal):
+    reason = discord.ui.TextInput(
+        label = "Reason",
+        style = discord.TextStyle.paragraph,
+        required = True
+    )
+    
+    def __init__(self, message_id, duration_seconds = None, is_ban = False):
+        title = "Block Message: 3rd Strike (Ban)" if is_ban else "Block Message"
+        super().__init__(title = title)
+        self.message_id = message_id
+        self.duration_seconds = duration_seconds
+        self.is_ban = is_ban
+    
+    async def on_submit(self, interaction: discord.Interaction):
+        if self.is_ban:
+            await logs.strike_ban(interaction, str(self.reason), self.message_id)
+        else:
+            await logs.block_decision(interaction, str(self.reason), self.message_id, self.duration_seconds)
+
+class TimeoutDurationSelect(discord.ui.Select):
+    def __init__(self, message_id):
+        options = [discord.SelectOption(label = label, value = str(seconds)) for label, seconds in TIMEOUT_OPTIONS]
+        super().__init__(
+            placeholder = "Choose timeout duration...",
+            options = options
+        )
+        self.message_id = message_id
+        
+    async def callback(self, interaction: discord.Interaction):
+        duration_seconds = int(self.values[0])
+        await interaction.response.send_modal(BlockReasonModal(self.message_id, duration_seconds))
+        
+class TimeoutDurationSelectView(discord.ui.View):
+    def __init__(self, message_id):
+        super().__init__(timeout = 120)
+        self.add_item(TimeoutDurationSelect(message_id))        

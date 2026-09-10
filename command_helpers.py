@@ -2,6 +2,9 @@ import discord
 import re
 import time
 import asyncio
+import imagehash
+from PIL import Image
+import io
 import battlehub_bot_ui as bh_ui
 from zoneinfo import ZoneInfo
 import bot_db as bot_db
@@ -238,6 +241,8 @@ async def _build_availability_breakdown(ctx_or_interaction, event, guild_id):
         title = f"📋 Staff Availability — **{event[1]}**",
         description = "\n".join(lines).strip()
     )
+
+
     
 async def find_audit_log_entry(guild, action, target, within_seconds = 15, retries = 3, delay = 0.5):
     for _ in range(retries):
@@ -251,3 +256,32 @@ async def find_audit_log_entry(guild, action, target, within_seconds = 15, retri
             return None
         await asyncio.sleep(delay)
     return None
+
+def compute_phash(image_bytes):
+    img = Image.open(io.BytesIO(image_bytes))
+    return str(imagehash.phash(img))
+
+def hash_distance(hash1, hash2):
+    return imagehash.hex_to_hash(hash1) - imagehash.hex_to_hash(hash2)
+
+def find_matching_hash(new_hash, stored_hashes, threshold = 8):
+    for stored in stored_hashes:
+        if hash_distance(new_hash, stored) <= threshold:
+            return stored
+    return None
+
+async def scan_image_for_flags(guild_id, message):
+    if not message.attachments:
+        return []
+    stored_hashes = bot_db.get_scam_hash(guild_id)
+    if not stored_hashes:
+        return []
+    
+    matches = []
+    for attachment in message.attachments:
+        if attachment.content_type and attachment.content_type.startswith("image/"):
+            image_bytes = await attachment.read()
+            new_hash = compute_phash(image_bytes)
+            if find_matching_hash(new_hash, stored_hashes):
+                matches.append("Known scam or NSFW image")
+    return matches

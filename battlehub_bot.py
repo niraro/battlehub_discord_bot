@@ -600,7 +600,127 @@ async def on_member_ban(guild, user):
 @bot.event
 async def on_member_update(before, after):
     await logs.role_update(bot, before, after)
+
+@bot.hybrid_command(description = "Add flagged terms to flag list")
+#@commands.has_any_role("Announcer", "Admin")
+async def addflaggedterm(ctx, *, term: str):
+    bot_db.add_flagged_term(str(ctx.guild.id), term, str(ctx.author))
+    embed = create_embed(
+        title = "✅ Term Added",
+        description = f"`{term}` will now be flagged"
+    )
+    await ctx.send(embed = embed, ephemeral = True)
     
+@bot.hybrid_command(description = "Remove flagged terms from flag list")
+#@commands.has_any_role("Announcer", "Admin")
+async def removeflaggedterm(ctx, *, term: str):
+    deleted = bot_db.remove_flagged_term(str(ctx.guild.id), term)
+    if deleted:
+        embed = create_embed(
+            title = "🗑️ Term Removed",
+            description = f"`{term}` will no longer be flagged"
+        )
+    else:
+        embed = create_embed(
+            title = "⚠️ Term Not Found",
+            description = f"`{term}` cannot be found in the flagged terms list",
+            colour = discord.Colour.red()
+        )
+    await ctx.send(embed = embed, ephemeral = True)
+    
+@bot.hybrid_command(description = "View all flagged terms in the list")
+#@commands.has_any_role("Announcer", "Admin")
+async def viewftlist(ctx):
+    terms = bot_db.get_flagged_terms(str(ctx.guild.id))
+    if not terms:
+        embed = create_embed(
+            title = "📋 Flagged Terms",
+            description = "No terms currently in the list"
+        )
+    else:
+        embed = create_embed(
+            title = "📋 Flagged Terms",
+            description = "\n".join(f"`{t}`" for t in terms)
+        )
+    await ctx.send(embed = embed, ephemeral = True)
+
+@bot.event
+async def on_message(message):
+    if message.author.bot:
+        return
+    if isinstance(message.channel, discord.DMChannel):
+        await handle_ticket_dm(bot, message)
+        return
+    await logs.scan_message_for_flags(bot, message)
+    await bot.process_commands(message)
+    
+@bot.event
+async def on_message_edit(before, after):
+    if after.author.bot:
+        return
+    if before.content == after.content:
+        return
+    await logs.scan_message_for_flags(bot, after)
+    
+@bot.hybrid_command(description = "Add a domain (e.g. google.com) to the link flagging list")
+#@commands.has_any_role("Announcer", "Admin")
+async def addflaggeddomain(ctx, *, domain: str):
+    bot_db.add_flagged_domain(str(ctx.guild.id), domain, str(ctx.author))
+    embed = create_embed(
+        title = "✅ Domain Added",
+        description = f"`{domain}` will now be flagged"
+    )
+    await ctx.send(embed = embed, ephemeral = True)
+    
+@bot.hybrid_command(description = "Remove a domain (e.g. google.com) from the link flagging list")
+#@commands.has_any_role("Announcer", "Admin")
+async def removeflaggeddomain(ctx, *, domain: str):
+    deleted = bot_db.remove_flagged_domain(str(ctx.guild.id), domain)
+    if deleted:
+        embed = create_embed(
+            title = "🗑️ Domain Removed",
+            description = f"`{domain}` will no longer get flagged"
+        )
+    else:
+        embed = create_embed(
+            title = "⚠️ Domain Not Found",
+            description = f"`{domain}` could not be found in the list",
+            colour = discord.Colour.red()
+        )
+    await ctx.send(embed = embed, ephemeral = True)
+    
+@bot.hybrid_command(description = "View list of all flagged domains for this server")
+#@commands.has_any_role("Announcer", "Admin")
+async def viewflaggeddomains(ctx):
+    domains = bot_db.get_flagged_domains(str(ctx.guild.id))
+    if not domains:
+        embed = create_embed(
+            title = "📋 Flagged Domains",
+            description = "No domains currently flagged"
+        )
+    else:
+        embed = create_embed(
+            title = "📋 Flagged Domains",
+            description = "\n".join(f"`{d}`" for d in domains)
+        )
+    await ctx.send(embed = embed, ephemeral = True)
+    
+@bot.tree.context_menu(name = "Blacklist Image(s)")
+@app_commands.checks.has_any_role("Announcer", "Admin")
+async def blacklist_image(interaction: discord.Interaction, message: discord.Message):
+    if not message.attachments:
+        await interaction.response.send_message("This message has no attachments", ephemeral = True)
+        return
+    
+    added = 0
+    for attachment in message.attachments:
+        if attachment.content_type and attachment.content_type.startswith("image/"):
+            image_bytes = await attachment.read()
+            phash = helper.compute_phash(image_bytes)
+            bot_db.add_scam_hash(str(interaction.guild.id), phash, str(interaction.user))
+            added += 1
+    await interaction.response.send_message(f"Blacklisted {added} image(s) from this message", ephemeral = True)
+      
 ############################# REACTION TESTING ##############################
 
 @bot.hybrid_command(description = "Post a test reaction-role embed")

@@ -150,15 +150,15 @@ class FlaggedMessageView(discord.ui.View):
         style = discord.ButtonStyle.success,
         emoji = "✅"
     )
-    async def approve(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def approve_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await logs.review_decision(interaction, "approved")
         
     @discord.ui.button(
-        label = "Block + Timeout",
+        label = "Timeout",
         style = discord.ButtonStyle.danger,
         emoji = "🚫"        
     )
-    async def block(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def timeout_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         review = bot_db.get_pending_review(str(interaction.message.id))
         if review is None:
             await interaction.response.send_message("Couldn't find review", ephemeral = True)
@@ -169,11 +169,19 @@ class FlaggedMessageView(discord.ui.View):
             return
         strikes = bot_db.get_strike_count(guild_id, author_id)
         if strikes >= 2:
-            await interaction.response.send_modal(BlockReasonModal(interaction.message.id, None, is_ban = True))
+            await interaction.response.send_modal(BlockReasonModal(interaction.message.id, None, ban_origin = "strike"))
         else:      
             view = TimeoutDurationSelectView(interaction.message.id)
             await interaction.response.send_message("Select a timeout duration:", view = view, ephemeral = True)
-        
+    
+    @discord.ui.button(
+        label = "Ban",
+        style = discord.ButtonStyle.danger,
+        emoji = "🔨"
+    )
+    async def ban_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(BlockReasonModal(interaction.message.id, None, ban_origin = "manual"))
+            
 class BlockReasonModal(discord.ui.Modal):
     reason = discord.ui.TextInput(
         label = "Reason",
@@ -181,16 +189,21 @@ class BlockReasonModal(discord.ui.Modal):
         required = True
     )
     
-    def __init__(self, message_id, duration_seconds = None, is_ban = False):
-        title = "Block Message: 3rd Strike (Ban)" if is_ban else "Block Message"
+    def __init__(self, message_id, duration_seconds = None, ban_origin = None):
+        if ban_origin == "strike":
+            title = "Block Message: 3rd Strike (Ban)"
+        elif ban_origin == "manual":
+            title = "Ban User: Severe Rule Violation"
+        else:
+            title = "Block Message"
         super().__init__(title = title)
         self.message_id = message_id
         self.duration_seconds = duration_seconds
-        self.is_ban = is_ban
+        self.is_ban = ban_origin
     
     async def on_submit(self, interaction: discord.Interaction):
         if self.is_ban:
-            await logs.strike_ban(interaction, str(self.reason), self.message_id)
+            await logs.strike_ban(interaction, str(self.reason), self.message_id, self.is_ban)
         else:
             await logs.block_decision(interaction, str(self.reason), self.message_id, self.duration_seconds)
 

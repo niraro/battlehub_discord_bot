@@ -335,14 +335,15 @@ async def review_decision(interaction, decision):
         await interaction.response.send_message("Marked as approved", ephemeral = True)
 
 async def block_decision(interaction, reason, message_id, duration_seconds):
+    await interaction.response.defer(ephemeral = True)
     review = bot_db.get_pending_review(str(message_id))
     if review is None:
-        await interaction.response.send_message("Couldn't find review", ephemeral = True)
+        await interaction.followup.send("Couldn't find review", ephemeral = True)
         return
     
     review_id, guild_id, author_id, channel_id, content, matched_terms, status = review
     if status != "pending":
-        await interaction.response.send_message("A staff member has already reviewed this flag", ephemeral = True)
+        await interaction.followup.send("A staff member has already reviewed this flag", ephemeral = True)
         return
     bot_db.set_review_status(review_id, "blocked")
     
@@ -384,20 +385,24 @@ async def block_decision(interaction, reason, message_id, duration_seconds):
         inline = False
     )
     await review_msg.edit(embed = original_embed, view = discord.ui.View())
-    await interaction.response.send_message("Message blocked and logged", ephemeral = True)
+    await interaction.followup.send("Message blocked and logged", ephemeral = True)
 
-async def strike_ban(interaction, staff_reason, message_id):
+async def strike_ban(interaction, staff_reason, message_id, origin):
+    await interaction.response.defer(ephemeral = True)
     review = bot_db.get_pending_review(str(message_id))
     if review is None:
-        await interaction.response.send_message("Couldn't find review", ephemeral = True)
+        await interaction.followup.send("Couldn't find review", ephemeral = True)
         return
     review_id, guild_id, author_id, channel_id, content, matched_terms, status = review
     if status != "pending":
-        await interaction.response.send_message("A staff member has already reviewed this flag", ephemeral = True)
+        await interaction.followup.send("A staff member has already reviewed this flag", ephemeral = True)
         return
     
     bot_db.set_review_status(review_id, "blocked")
-    combined_reason = f"3 strikes, you're out!\n**Staff note:** {staff_reason}"
+    if origin == "strike":
+        combined_reason = f"3 strikes, you're out!\n**Staff note:** {staff_reason}"
+    else:
+        combined_reason = f"User Ban (Severe Rule Violation): {staff_reason}"
     guild = interaction.client.get_guild(int(guild_id))
     member = guild.get_member(int(author_id)) if guild else None
     if member is None:
@@ -416,7 +421,7 @@ async def strike_ban(interaction, staff_reason, message_id):
             pass
         result_note = f"Banned by {interaction.user.mention}\nReason: {staff_reason}"
     
-    bot_db.increment_strike_count(guild_id, author_id)
+    bot_db.reset_strike_count(guild_id, author_id)
     log_channel_id = bot_db.get_log_channel(guild_id, "Message")
     log_channel = interaction.client.get_channel(int(log_channel_id))
     review_msg = await log_channel.fetch_message(int(message_id))
@@ -429,8 +434,7 @@ async def strike_ban(interaction, staff_reason, message_id):
         inline = False
     )
     await review_msg.edit(embed = original_embed, view = discord.ui.View())
-    await interaction.response.send_message("User banned (3rd strike) and logged", ephemeral = True)
-    bot_db.reset_strike_count(guild_id, author_id)
+    await interaction.followup.send("User banned and logged", ephemeral = True)
 
 def extract_domains(content):
     if not content:

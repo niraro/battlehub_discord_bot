@@ -453,3 +453,23 @@ def extract_domains(content):
 def find_matched_domains(content, flagged_domains):
     found = extract_domains(content)
     return [d for d in found for flagged in flagged_domains if d == flagged or d.endswith("." + flagged)]
+
+def render_welcome_message(template, member):
+    return (
+        template
+        .replace("{user}", member.mention)
+        .replace("{username}", member.name)
+        .replace("{server}", member.guild.name)
+        .replace("{membercount}", str(member.guild.member_count))
+    )
+
+async def send_welcome(bot, member):
+    settings = bot_db.get_welcome(str(member.guild.id))
+    if settings is None:
+        return
+    channel_id, template = settings
+    channel = bot.get_channel(int(channel_id))
+    if channel is None:
+        return
+    rendered = render_welcome_message(template, member)
+    await channel.send(rendered)

@@ -537,6 +537,16 @@ async def bhcommands(ctx):
     )
     await ctx.send(embed = embed)
 
+@bot.hybrid_command(description = "Set a custom welcome message for new players in a chosen channel")
+#@commands.has_any_role("Admin", "Mod")
+async def setwelcomemessage(ctx, channel: discord.TextChannel, *, message: str):
+    bot_db.set_welcome(str(ctx.guild.id), str(channel.id), message)
+    embed = create_embed(
+        title = "✅ Welcome Message Set",
+        description = f"New members will now be greeted in {channel.mention}"
+    )
+    await ctx.send(embed = embed, ephemeral = True)
+
 ################################ Moderation Tools ##################################
     
 @bot.hybrid_command(description = "Sets channel for support tickets")
@@ -588,6 +598,7 @@ async def viewlogs(ctx):
 @bot.event
 async def on_member_join(member):
     await logs.member_join(bot, member)
+    await logs.send_welcome(bot, member)
 
 @bot.event
 async def on_member_remove(member):
@@ -721,19 +732,162 @@ async def blacklist_image(interaction: discord.Interaction, message: discord.Mes
             added += 1
     await interaction.response.send_message(f"Blacklisted {added} image(s) from this message", ephemeral = True)
       
-############################# REACTION TESTING ##############################
+############################# REACTION Commands ##############################
 
-@bot.hybrid_command(description = "Post a test reaction-role embed")
-async def testreactrole(ctx, head_coach: discord.Role, hallo: discord.Role):
-    await react.test_reaction_role(ctx, head_coach, hallo)
+@bot.hybrid_command(description = "Assign/remove roles based on message reaction(s)")
+#@commands.has_any_role("Announcer", "Admin")
+async def addreactionrole(ctx, message_link: str, emoji: str, add_role: discord.Role = None, remove_role: discord.Role = None, toggle: bool = False):
+    if add_role is None and remove_role is None:
+        embed = create_embed(
+            title = "⚠️ Missing Role",
+            description = "Specify an add_role, a remove_role, or both",
+            colour = discord.Colour.red()
+        )
+        await ctx.send(embed = embed, ephemeral = True)
+        return
+
+    parsed = react.parse_message_link(message_link)
+    if parsed is None:
+        embed = create_embed(
+            title = "⚠️ Invalid Link",
+            description = "Couldn't parse the message link",
+            colour = discord.Colour.red()
+        )
+        await ctx.send(embed = embed, ephemeral = True)
+        return
+    guild_id, channel_id, message_id = parsed
     
+    channel = ctx.guild.get_channel(int(channel_id))
+    if channel is None:
+        embed = create_embed(
+            title = "⚠️ Channel Not Found",
+            description = "Couldn't find channel",
+            colour = discord.Colour.red()
+        )
+        await ctx.send(embed = embed, ephemeral = True)
+        return
+    
+    try:
+        message = await channel.fetch_message(int(message_id))
+        await message.add_reaction(emoji)
+    except discord.NotFound:
+        embed = create_embed(
+            title = "⚠️ Message Not Found",
+            description = "Couldn't find message",
+            colour = discord.Colour.red()
+        ) 
+        await ctx.send(embed = embed, ephemeral = True)
+        return
+    except discord.HTTPException:
+        embed = create_embed(
+            title = "⚠️ Invalid Emoji",
+            description = "Emoji either not in server, or could not be found",
+            colour = discord.Colour.red()
+        ) 
+        await ctx.send(embed = embed, ephemeral = True)
+        return
+    
+    bot_db.add_reaction_role_mapping(
+        str(ctx.guild.id), message_id, emoji,
+        str(add_role.id) if add_role else None,
+        str(remove_role.id) if remove_role else None,
+        toggle
+    )         
+    
+    embed = create_embed(
+        title = "✅ Reaction Role Added",
+        description = f"Reacting with {emoji} will now " +
+            (f"add {add_role.mention} " if add_role else "") +
+            (f"and " if add_role and remove_role else "") +
+            (f"remove {remove_role.mention} " if remove_role else "") +
+            f"({'toggleable' if toggle else 'one-time'})"
+    )
+    await ctx.send(embed = embed, ephemeral = True)
+    
+@bot.hybrid_command(description = "Remove a role reaction mapping")
+#@commands.has_any_role("Announcer", "Admin")
+async def removereactrole(ctx, message_link: str, emoji: str):
+    parsed = react.parse_message_link(message_link)
+    if parsed is None:
+        embed = create_embed(
+            title = "⚠️ Invalid Link",
+            colour = discord.Colour.red()
+        )
+        await ctx.send(embed = embed, ephemeral = True)
+        return
+    _, _, message_id = parsed
+    deleted = bot_db.remove_reaction_role_mapping(str(ctx.guild.id), message_id, emoji)
+    if deleted:
+        await ctx.send(embed = create_embed(title = "🗑️ Removed"), ephemeral = True)
+    else:
+        await ctx.send(embed = create_embed(title = "⚠️ Map Not Found", colour = discord.Colour.red()), ephemeral = True)
+
+@bot.hybrid_command(description = "List role reaction mappings for a message")
+#@commands.has_any_role("Announcer", "Admin")
+async def listreactroles(ctx, message_link: str):
+    parsed = react.parse_message_link(message_link)
+    if parsed is None:
+        embed = create_embed(
+            title = "⚠️ Invalid Link",
+            colour = discord.Colour.red()
+        )
+        await ctx.send(embed = embed, ephemeral = True)
+        return
+    _, _, message_id = parsed
+    rows = bot_db.list_reaction_role_mappings(str(ctx.guild.id), message_id)
+    if not rows:
+        embed = create_embed(
+            title = "📋 Reaction Roles",
+            description = "No role-to-message mapping(s) configured yet"
+        )
+        await ctx.send(embed = embed, ephemeral = True)
+        return
+    lines = []
+    for emoji, add_id, remove_id, toggle in rows:
+        add_text = f"<@&{add_id}>" if add_id else "-"
+        remove_text = f"<@&{remove_id}>" if remove_id else "-"
+        lines.append(f"{emoji} -> Add: {add_text}, Remove: {remove_text} ({'toggle' if toggle else 'sticky'})")
+    embed = create_embed(
+        title = "📋 Reaction Roles",
+        description = "\n".join(lines)
+    )
+    await ctx.send(embed = embed, ephemeral = True)
+    
+# Reaction Listeners
 @bot.event
 async def on_raw_reaction_add(payload):
-    await react.react_role(bot, payload, adding = True)
-
+    if payload.member and payload.member.bot:
+        return
+    mapping = bot_db.get_reaction_role_mapping(str(payload.guild_id), str(payload.message_id), str(payload.emoji))
+    if mapping is None:
+        return
+    add_role_id, remove_role_id, toggle = mapping
+    guild = bot.get_guild(payload.guild_id)
+    member = guild.get_member(payload.user_id)
+    if member is None:
+        return
+    if remove_role_id and (role := guild.get_role(int(remove_role_id))):
+        await member.remove_roles(role, reason = "Reaction role")
+    if add_role_id and (role := guild.get_role(int(add_role_id))):
+        await member.add_roles(role, reason = "Reaction role")
+        
 @bot.event
 async def on_raw_reaction_remove(payload):
-    await react.react_role(bot, payload, adding = False)
+    mapping = bot_db.get_reaction_role_mapping(str(payload.guild_id), str(payload.message_id), str(payload.emoji))
+    if mapping is None:
+        return
+    add_role_id, remove_role_id, toggle = mapping
+    if not toggle:
+        return # sticky role
+    
+    guild = bot.get_guild(payload.guild_id)
+    member = guild.get_member(payload.user_id)
+    if member is None:
+        return
+    if add_role_id and (role := guild.get_role(int(add_role_id))):
+        await member.remove_roles(role, reason = "Reaction role removed")
+    if remove_role_id and (role := guild.get_role(int(remove_role_id))):
+        await member.add_roles(role, reason = "Reaction role removed")
           
 ############################# Error Checks for Commands #########################################
 

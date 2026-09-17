@@ -285,3 +285,32 @@ async def scan_image_for_flags(guild_id, message):
             if find_matching_hash(new_hash, stored_hashes):
                 matches.append("Known scam or NSFW image")
     return matches
+
+
+
+async def check_honeypot(bot, message):
+    if message.author.bot:
+        return False
+    guild_id = str(message.guild.id)
+    exempt_roles = {"Mod", "Admin"}
+    if any(r.name in exempt_roles for r in message.author.roles):
+        return False
+    if not bot_db.is_honeypot_channel(guild_id, str(message.channel.id)):
+        return False
+    
+    try:
+        await message.delete()
+    except discord.NotFound():
+        pass
+    
+    try:
+        await message.author.send("You have been banned for posting in a restricted channel")
+    except discord.Forbidden:
+        pass
+    
+    try:
+        await message.guild.ban(message.author, reason = "Posted in honeypot channel")
+    except discord.Forbidden:
+        pass
+    
+    return True

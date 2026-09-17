@@ -70,16 +70,29 @@ async def clear_guild_sync(ctx):
 async def before_command_use(ctx):
     await logs.log_command_usage(ctx, create_embed)
 
-############################### Ticket Event(s) & Commands #######################################
-
+# Listens to messages and flags as necessary
 @bot.event
 async def on_message(message):
     if message.author.bot:
         return
+    
+    # DM ticket listener
     if isinstance(message.channel, discord.DMChannel):
-        await handle_ticket_dm(message)
+        await handle_ticket_dm(bot, message)
         return
+    
+    # Honeypot listener
+    triggered = await helper.check_honeypot(bot, message)
+    if triggered:
+        return
+    
+    # Message Flag listener
+    await logs.scan_message_for_flags(bot, message)
+    
+    # Allows commands with prefix to work
     await bot.process_commands(message)
+
+############################### Ticket Event(s) & Commands #######################################
 
 async def handle_ticket_dm(message):
     user = message.author
@@ -656,16 +669,6 @@ async def viewftlist(ctx):
     await ctx.send(embed = embed, ephemeral = True)
 
 @bot.event
-async def on_message(message):
-    if message.author.bot:
-        return
-    if isinstance(message.channel, discord.DMChannel):
-        await handle_ticket_dm(bot, message)
-        return
-    await logs.scan_message_for_flags(bot, message)
-    await bot.process_commands(message)
-    
-@bot.event
 async def on_message_edit(before, after):
     if after.author.bot:
         return
@@ -731,6 +734,49 @@ async def blacklist_image(interaction: discord.Interaction, message: discord.Mes
             bot_db.add_scam_hash(str(interaction.guild.id), phash, str(interaction.user))
             added += 1
     await interaction.response.send_message(f"Blacklisted {added} image(s) from this message", ephemeral = True)
+
+@bot.hybrid_command(description = "Assign a honeypot channel")
+#@commands.has_any_role("Announcer", "Admin")
+async def addhoneypot(ctx, channel: discord.TextChannel):
+    bot_db.add_honeypot_channel(str(ctx.guild.id), str(channel.id))
+    embed = create_embed(
+        title = "✅ Honeypot Set",
+        description = f"{channel.mention} is now a honeypot channel"
+    )
+    await ctx.send(embed = embed, ephemeral = True)
+
+@bot.hybrid_command(description = "Remove a honeypot channel")
+#@commands.has_any_role("Announcer", "Admin")
+async def removehoneypot(ctx, channel: discord.TextChannel):
+    deleted = bot_db.remove_honeypot_channel(str(ctx.guild.id), str(channel.id))
+    if deleted:
+        embed = create_embed(
+            title = "🗑️ Honeypot channel removed",
+            description = f"{channel.mention} is no longer a honeypot channel"
+        )
+    else:
+        embed = create_embed(
+            title = "⚠️ Honeypot Channel Not Found",
+            description = f"{channel.mention} is not registered as a honeypot channel",
+            colour = discord.Colour.red()
+        )
+    await ctx.send(embed = embed, ephemeral = True)
+        
+@bot.hybrid_command(description = "Lists all honeypot channels")
+#@commands.has_any_role("Announcer", "Admin")
+async def honeypotlist(ctx,):
+    channel_ids = bot_db.list_honeypot_channels(str(ctx.guild.id))
+    if not channel_ids:
+        embed = create_embed(
+            title = "📋 Honeypot Channel(s)",
+            description = "No honeypot channels available yet"
+        )
+    else:
+        embed = create_embed(
+            title = "📋 Honeypot Channel(s)",
+            description = "\n".join(f"<#{c}>" for c in channel_ids)
+        )
+    await ctx.send(embed = embed, ephemeral = True)
       
 ############################# REACTION Commands ##############################
 
@@ -818,9 +864,9 @@ async def removereactrole(ctx, message_link: str, emoji: str):
     _, _, message_id = parsed
     deleted = bot_db.remove_reaction_role_mapping(str(ctx.guild.id), message_id, emoji)
     if deleted:
-        await ctx.send(embed = create_embed(title = "🗑️ Removed"), ephemeral = True)
+        await ctx.send(embed = create_embed(title = "🗑️ Role Map Removed"), ephemeral = True)
     else:
-        await ctx.send(embed = create_embed(title = "⚠️ Map Not Found", colour = discord.Colour.red()), ephemeral = True)
+        await ctx.send(embed = create_embed(title = "⚠️ Role Map Not Found", colour = discord.Colour.red()), ephemeral = True)
 
 @bot.hybrid_command(description = "List role reaction mappings for a message")
 #@commands.has_any_role("Announcer", "Admin")

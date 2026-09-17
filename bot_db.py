@@ -124,7 +124,14 @@ def init_db():
             toggle INTEGER NOT NULL DEFAULT 0,
             UNIQUE(guild_id, message_id, emoji)         
         )
-""")                          
+""")
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS honeypot_settings (
+            guild_id TEXT NOT NULL,
+            channel_id TEXT NOT NULL,
+            PRIMARY KEY (guild_id, channel_id)         
+        )
+""")                            
     conn.commit()
     conn.close()
 
@@ -667,4 +674,48 @@ def list_reaction_role_mappings(guild_id, message_id):
     )
     rows = cursor.fetchall()
     conn.close()
-    return rows 
+    return rows
+
+
+def add_honeypot_channel(guild_id, channel_id):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT OR IGNORE INTO honeypot_settings (guild_id, channel_id) VALUES (?, ?) ",
+        (guild_id, channel_id)
+    )
+    conn.commit()
+    conn.close()
+    
+def remove_honeypot_channel(guild_id, channel_id):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor() 
+    cursor.execute(
+        "DELETE FROM honeypot_settings WHERE guild_id = ? AND channel_id = ? ",
+        (guild_id, channel_id)
+    )      
+    conn.commit()
+    conn.closer()
+    return cursor.rowcount
+
+def is_honeypot_channel(guild_id, channel_id):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT 1 FROM honeypot_settings WHERE guild_id = ? AND channel_id = ? ",
+        (guild_id, channel_id)
+    )
+    row = cursor.fetchone()
+    conn.close()
+    return row is not None
+
+def list_honeypot_channels(guild_id):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT channel_id FROM honeypot_settings WHERE guild_id = ? ",
+        (guild_id,)
+    )
+    rows = cursor.fetchall()
+    conn.close()
+    return [r[0] for r in rows]

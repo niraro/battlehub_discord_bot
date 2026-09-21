@@ -365,13 +365,13 @@ async def block_decision(interaction, reason, message_id, duration_seconds):
             )
         except discord.Forbidden:
             pass
-        bot_db.increment_strike_count(guild_id, author_id)
-        new_count = bot_db.get_strike_count(guild_id, author_id)
+        #bot_db.increment_strike_count(guild_id, author_id)
+        #new_count = bot_db.get_strike_count(guild_id, author_id)
         result_note = ( 
                     f"**Blocked by:** {interaction.user.mention}\n"
                     f"**Timeout:** {duration_label}\n"
                     f"**Reason:** {reason}\n"
-                    f"**Current strike:** {new_count}/3"
+                    #f"**Current strike:** {new_count}/3"
         )
     log_channel_id = bot_db.get_log_channel(guild_id, "Message")
     log_channel = interaction.client.get_channel(int(log_channel_id))
@@ -435,6 +435,21 @@ async def strike_ban(interaction, staff_reason, message_id, origin):
     )
     await review_msg.edit(embed = original_embed, view = discord.ui.View())
     await interaction.followup.send("User banned and logged", ephemeral = True)
+
+async def timeout_update(bot, before, after):
+    if before.timed_out_until == after.timed_out_until:
+        return
+    if after.timed_out_until is None or after.timed_out_until <= discord.utils.utcnow():
+        return
+    
+    guild = after.guild
+    entry = await helper.find_audit_log_entry(guild, discord.AuditLogAction.member_update, after)
+    duration_seconds = int((after.timed_out_until - discord.utils.utcnow()).total_seconds())
+    reason = entry.reason if entry and entry.reason else None
+    moderator_id = str(entry.user.id) if entry else None
+    source = "flagged block" if entry and entry.user.id == bot.user.id else "manual"
+    
+    bot_db.log_timeout(str(guild.id), str(after.id), duration_seconds, reason, moderator_id, source, int(time.time()))
 
 def extract_domains(content):
     if not content:

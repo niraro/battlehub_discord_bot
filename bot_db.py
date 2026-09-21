@@ -83,14 +83,6 @@ def init_db():
         )                   
 """)
     cursor.execute("""
-        CREATE TABLE IF NOT EXISTS user_strikes (
-            guild_id TEXT NOT NULL,
-            discord_id TEXT NOT NULL,
-            strikes INTEGER NOT NULL DEFAULT 0,
-            PRIMARY KEY (guild_id, discord_id)         
-        )
-""")
-    cursor.execute("""
         CREATE TABLE IF NOT EXISTS flagged_domains (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             guild_id TEXT NOT NULL,
@@ -130,6 +122,18 @@ def init_db():
             guild_id TEXT NOT NULL,
             channel_id TEXT NOT NULL,
             PRIMARY KEY (guild_id, channel_id)         
+        )
+""")
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS timeout_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            guild_id TEXT NOT NULL,
+            discord_id TEXT NOT NULL,
+            duration_seconds INTEGER,
+            reason TEXT,
+            moderator_id TEXT,
+            source TEXT NOT NULL,
+            timestamp INTEGER NOT NULL         
         )
 """)                            
     conn.commit()
@@ -523,38 +527,6 @@ def set_review_status(review_id, status):
     )
     conn.commit()
     conn.close()
-
-def get_strike_count(guild_id, discord_id):
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute(
-        "SELECT strikes FROM user_strikes WHERE guild_id = ? AND discord_id = ?",
-        (guild_id, discord_id)
-    )
-    row = cursor.fetchone()
-    conn.close()
-    return row[0] if row else 0
-
-def increment_strike_count(guild_id, discord_id):
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute(
-        "INSERT INTO user_strikes (guild_id, discord_id, strikes) VALUES (?, ?, 1) "
-        "ON CONFLICT (guild_id, discord_id) DO UPDATE SET strikes = strikes + 1",
-        (guild_id, discord_id)
-    )    
-    conn.commit()
-    conn.close()
-    
-def reset_strike_count(guild_id, discord_id):
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute(
-        "UPDATE user_strikes SET strikes = 0 WHERE guild_id = ? AND discord_id = ?", 
-        (guild_id, discord_id)
-    )
-    conn.commit()
-    conn.close()
     
 def add_flagged_domain(guild_id, domain, added_by):
     conn = sqlite3.connect(DB_FILE)
@@ -719,3 +691,38 @@ def list_honeypot_channels(guild_id):
     rows = cursor.fetchall()
     conn.close()
     return [r[0] for r in rows]
+
+
+
+def log_timeout(guild_id, discord_id, duration_seconds, reason, moderator_id, source, timestamp):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO timeout_history (guild_id, discord_id, duration_seconds, reason, moderator_id, source, timestamp) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (guild_id, discord_id, duration_seconds, reason, moderator_id, source, timestamp)
+    )
+    conn.commit()
+    conn.close()
+    
+def get_timeout_count(guild_id, discord_id):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT COUNT(*) FROM timeout_history WHERE guild_id = ? AND discord_id = ? ",
+        (guild_id, discord_id)
+    )
+    count = cursor.fetchone()[0]
+    conn.close()
+    return count
+
+def get_timeout_history(guild_id, discord_id):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT duration_seconds, reason, moderator_id, source, timestamp FROM timeout_history "
+        "WHERE guild_id = ? AND discord_id = ? ORDER BY timestamp DESC ", (guild_id, discord_id)
+    )  
+    rows = cursor.fetchall()
+    conn.close()
+    return rows

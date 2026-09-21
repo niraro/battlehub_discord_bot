@@ -166,13 +166,9 @@ class FlaggedMessageView(discord.ui.View):
         review_id, guild_id, author_id, channel_id, content, matched_terms, status = review
         if status != "pending":
             await interaction.response.send_message("A staff member has already reviewed this flag", ephemeral = True)
-            return
-        strikes = bot_db.get_strike_count(guild_id, author_id)
-        if strikes >= 2:
-            await interaction.response.send_modal(BlockReasonModal(interaction.message.id, None, ban_origin = "strike"))
-        else:      
-            view = TimeoutDurationSelectView(interaction.message.id)
-            await interaction.response.send_message("Select a timeout duration:", view = view, ephemeral = True)
+            return      
+        view = TimeoutDurationSelectView(interaction.message.id)
+        await interaction.response.send_message("Select a timeout duration:", view = view, ephemeral = True)
     
     @discord.ui.button(
         label = "Ban",
@@ -190,20 +186,18 @@ class BlockReasonModal(discord.ui.Modal):
     )
     
     def __init__(self, message_id, duration_seconds = None, ban_origin = None):
-        if ban_origin == "strike":
-            title = "Block Message: 3rd Strike (Ban)"
-        elif ban_origin == "manual":
+        if ban_origin == "manual":
             title = "Ban User: Severe Rule Violation"
         else:
             title = "Block Message"
         super().__init__(title = title)
         self.message_id = message_id
         self.duration_seconds = duration_seconds
-        self.is_ban = ban_origin
+        self.ban_origin = ban_origin
     
     async def on_submit(self, interaction: discord.Interaction):
-        if self.is_ban:
-            await logs.strike_ban(interaction, str(self.reason), self.message_id, self.is_ban)
+        if self.ban_origin:
+            await logs.strike_ban(interaction, str(self.reason), self.message_id, self.ban_origin)
         else:
             await logs.block_decision(interaction, str(self.reason), self.message_id, self.duration_seconds)
 

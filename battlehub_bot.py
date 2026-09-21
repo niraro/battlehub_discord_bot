@@ -624,6 +624,90 @@ async def on_member_ban(guild, user):
 @bot.event
 async def on_member_update(before, after):
     await logs.role_update(bot, before, after)
+    await logs.timeout_update(bot, before, after)
+
+@bot.hybrid_command(description = "Unban a user")
+#@commands.has_any_role("Announcer", "Admin")
+async def unban(ctx, user_id: str, *, reason: str = "No reason provided"):
+    try:
+        user = await bot.fetch_user(int(user_id))
+    except (ValueError, discord.NotFound):
+        await ctx.send(embed = create_embed(title = "⚠️ Invalid ID", colour = discord.Colour.red()), ephemeral = True)
+        return
+    try:
+        await ctx.guild.unban(user, reason = reason)
+    except discord.NotFound:
+        embed = create_embed(
+            title = "⚠️ Not Banned",
+            description = f"`{user}` is not currently banned",
+            colour = discord.Colour.red()
+        )
+        await ctx.send(embed = embed, ephemeral = True)
+        return
+    embed = create_embed(
+        title = "✅ Unbanned",
+        description = f"**{user}** has been unbanned\n**Reason:** {reason}"
+    )
+    await ctx.send(embed = embed)
+
+@bot.hybrid_command(description = "List currently banned users")
+#@commands.has_any_role("Announcer", "Admin")
+async def banlist(ctx):
+    bans = [entry async for entry in ctx.guild.bans(limit = 25)]
+    if not bans:
+        embed = create_embed(
+            title = "📋 Banned Users",
+            description = "No bans on record"
+        )
+    else:
+        lines = [f"**{b.user}** (`{b.user.id}`) -- {b.reason or 'No reason given'}" for b in bans]
+        embed = create_embed(
+            title = "📋 Banned Users",
+            description = "\n".join(lines)
+        )
+    await ctx.send(embed = embed, ephemeral = True)
+    
+@bot.hybrid_command(description = "List currently timed out users")
+#@commands.has_any_role("Announcer", "Admin")
+async def timeoutlist(ctx):
+    now = discord.utils.utcnow()
+    active = [m for m in ctx.guild.members if m.timed_out_until and m.timed_out_until > now]
+    if not active:
+        embed = create_embed(
+            title = "📋 Active Timeouts",
+            description = "No users currently timed out"
+        )
+    else:
+        lines = []
+        for m in active:
+            count = bot_db.get_timeout_count(str(ctx.guild.id), str(m.id))
+            lines.append(f"**{m}** timed out until: <t:{int(m.timed_out_until.timestamp())}:F> -- {count} total timeout(s)")
+        embed = create_embed(
+            title = "📋 Active Timeouts",
+            description = "\n".join(lines)
+        )
+    await ctx.send(embed = embed)
+
+@bot.hybrid_command(description = "Show a user's timeout history")
+#@commands.has_any_role("Announcer", "Admin")
+async def timeouthistory(ctx, user: discord.Member):
+    rows = bot_db.get_timeout_history(str(ctx.guild.id), str(user.id))
+    if not rows:
+        embed = create_embed(
+            title = f"📋 {user.display_name}'s Timeout History",
+            description = "No timeouts on record"
+        )
+    else:
+        lines = []
+        for duration, reason, moderator_id, source, timestamp in rows:
+            duration_label = f"{duration} seconds" if duration else "Unknown"
+            mod_text = f"<@{moderator_id}>" if moderator_id else "Unknown"
+            lines.append(f"<t:{timestamp}:F> | {duration_label} | {source} | Timed out by: {mod_text} | Reason: {reason or 'No reason given'}")
+        embed = create_embed(
+            title = f"📋 {user.display_name}'s Timeout History",
+            description = "\n".join(lines)
+        )
+    await ctx.send(embed = embed)
 
 @bot.hybrid_command(description = "Add flagged terms to flag list")
 #@commands.has_any_role("Announcer", "Admin")

@@ -3,8 +3,7 @@ import time
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from common.embed import create_embed
-from events.event_helpers import get_event_from_list
-from database.scheduling_db import get_availability_by_event, get_broadcast_settings, get_schedule_by_message, get_user_roles, add_signup, remove_signups, upsert_availability
+from database.scheduling_db import get_availability_by_event, get_broadcast_settings, get_schedule_by_message, get_user_roles, add_signup, remove_signups
 import scheduling.scheduling_config as schedule
 
 NO_PINGS = discord.AllowedMentions.none()
@@ -223,53 +222,3 @@ async def handle_click(interaction, action):
     signups = group_signups(get_availability_by_event(event_id, guild_id))
     content = render_schedule(name, event_ts, call, start, deadline, signups, ping_role_id, calendar_url)
     await interaction.response.edit_message(content = content, allowed_mentions = NO_PINGS)
-
-
-
-
-async def _set_availability(ctx, event_name, role, status, note):
-    event = get_event_from_list(event_name, str(ctx.guild.id))
-    if not event:
-        embed = create_embed(
-            title = "⚠️ Event Not Found", 
-            description = f"**{event_name}** not found. Make sure event exists (check spelling, typos, etc)",
-            colour = discord.Colour.red()
-        )
-        await ctx.send(embed = embed, ephemeral = True)
-        return
-    
-    role_obj = discord.utils.find(lambda r: r.name.lower() == role.lower(), ctx.guild.roles)
-    if not role_obj:
-        embed = create_embed(
-            title = "⚠️ Role Not Found",
-            description = f"No role called `{role}`",
-            colour = discord.Colour.red()
-        )
-        await ctx.send(embed = embed, ephemeral = True)
-        return
-    
-    if role_obj not in ctx.author.roles:
-        embed = create_embed(
-            title = "⚠️ Role Mismatch",
-            description = f"You do not have the `{role_obj.name}` role",
-            colour = discord.Colour.red()
-        )
-        await ctx.send(embed = embed, ephemeral = True )
-        return
-
-    status = status.capitalize()
-    if status not in ("Yes", "No", "Maybe"):
-        embed = create_embed(
-            title = "⚠️ Invalid Status",
-            description = "Options are `Yes`, `No`, `Maybe`",
-            colour = discord.Colour.red()
-        )
-        await ctx.send(embed = embed, ephemeral = True)
-        return
-    upsert_availability(event[0], str(ctx.author.id), role_obj.name, status, note, str(ctx.guild.id))
-    note_text = f"\nNote: {note}" if note else ""
-    embed = create_embed(
-        title = "✅ Availability Updated",
-        description = f"Availability for **{event[1]}** as `{role_obj.name}` has been updated to: `{status}`\n_{note_text}_"
-    )
-    await ctx.send(embed = embed, ephemeral = True)

@@ -1,3 +1,12 @@
+HELP = [
+    ("Commands", "Type `/` before a command. This will be the primary way of using the commands, and the version that will cause the least amount of confusion. The `!` variant should only be used if the `/` variant is having serious issues (e.g. commands not working on Discord's end)"),
+    ("Navigation", "Use the arrows at the bottom of the embed to navigate through different sections, or use the dropdown to navigate to a specific page right away")
+]
+
+HELPFUL_RESOURCES = [
+    ("IANA Timezones", "https://en.wikipedia.org/wiki/List_of_tz_database_time_zones#List"),
+]
+
 GENERAL_COMMANDS = [
     ("bhcommands", "Show all available BattleBot commands, shown by features. Also uses format `!bhcommands`"),
     ("timeconvert", "Convert a date and time into Discord format. Uses format `!timeconvert <DD-MM-YYYY> <HH:MM> <IANA Timezone>` **NB: IANA Timezone example: America/Edmonton**"),
@@ -44,9 +53,8 @@ REACTION_COMMANDS = [
 ]
 
 SCHEDULING_COMMANDS = [
-    ("addavail", "Add availability of a user for a given role for the event. Also uses format `!addavail <\"Event Name\"> <Role> <Status> <Note (optional)>`. **NB: If the role has multiple words, put \"\" around it**"),
-    ("adjustavail", "Adjust availability of a user for a given role for the event. Also uses format `!adjustavail <\"Event Name\"> <Role> <Status> <Note (optional)>`. Can also write `clear` as note to remove it. **NB: If the role has multiple words, put \"\" around it**"),
-    ("removeavail", "Remove availability of a user for a given role for the event. Also uses format `!removeavail <\"Event Name\"> <Role>`. **NB: If the role has multiple words, put \"\" around it**"),
+    ("buildschedule", "Build a schedule/sign-up sheet for chosen event. This opens a window to confirm the data (or change if needed) and allows other staff to register. Also uses format `!buildschedule <\"Event Name\">"),
+    ("schedulesettings", "View or change the 'default' settings for `buildschedule`. Using this command by itself shows the current default settings. Using the command and adding one of the inputs it takes allows you to change the default setting of picked section. Also uses format `!schedulesettings <setting (OPTIONAL)>`"),
     ("checkavail", "Show availability of a user for all events they are available for. Also uses format `!checkavail @<User>/<User ID>`"),
     ("eventavail", "Show availability of users for the chosen event. Also uses format `!checkevent <\"Event Name\">`"),
     ("dateavail", "Show event(s), then availability. If two or more events are present, will prompt you to pick the event. Also uses format `!checkdate <DD-MM-YYYY> <Timezone>`"),
@@ -58,8 +66,9 @@ TICKET_COMMANDS = [
     ("closeticket", "Close ticket. This will notify the user as well. Also uses format `!closeticket`"),
 ]
 
-
 COMMAND_CATEGORIES = [
+    ("How to Use", HELP),
+    ("Helpful Resources", HELPFUL_RESOURCES),
     ("General Commands", GENERAL_COMMANDS),
     ("News & Announcements Commands", NEWS_AND_ANNOUNCEMENTS),
     ("Event Commands", EVENT_COMMANDS),

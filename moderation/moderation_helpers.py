@@ -114,10 +114,7 @@ async def strike_ban(interaction, staff_reason, message_id, origin):
         return
     
     db.set_review_status(review_id, "blocked")
-    if origin == "strike":
-        combined_reason = f"3 strikes, you're out!\n**Staff note:** {staff_reason}"
-    else:
-        combined_reason = f"User Ban (Severe Rule Violation): {staff_reason}"
+    combined_reason = f"User Ban (Severe Rule Violation): {staff_reason}"
     guild = interaction.client.get_guild(int(guild_id))
     member = guild.get_member(int(author_id)) if guild else None
     if member is None:

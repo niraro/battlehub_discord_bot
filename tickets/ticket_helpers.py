@@ -6,9 +6,9 @@ from common.embed import create_embed
 from database import tickets_db as db
 
 
-TICKET_INACTIVITY_SECONDS = 120 # Temporarily 2 minute for testing
+TICKET_INACTIVITY_SECONDS = 72 * 60 * 60 # Currently adds up to 72 hours of inactivity before closing
 
-@tasks.loop(minutes = 1) # Temporarily set to check every minute
+@tasks.loop(hours = 1) # Temporarily set to check every minute
 async def check_stale_tickets():
     cutoff = int(time.time()) - TICKET_INACTIVITY_SECONDS
     stale_tickets = db.get_stale_tickets(cutoff)
@@ -104,7 +104,7 @@ async def notify_ticket_staff(bot, guild, thread):
     channel = bot.get_channel(int(tickets_channel_id))
     if channel is None:
         return
-    role_names = ("Announcer", "Admin") 
+    role_names = ("The Big Cheeses", "Server Guardians", "Admin", "Mod") 
     mentions = [r.mention for r in guild.roles if r.name in role_names]
     if not mentions:
         return

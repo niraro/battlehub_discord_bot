@@ -200,3 +200,16 @@ def update_schedule_times(message_id, guild_id, call_time, broadcast_start, sign
     )
     conn.commit()
     conn.close()
+    
+def get_active_schedules(since_timestamp):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT schedules.event_id, schedules.guild_id, schedules.channel_id, schedules.message_id, schedules.call_time,
+        schedules.broadcast_start, schedules.signup_deadline, schedules.ping_role_id, schedules.calendar_url,
+        events.name, events.date_timestamp FROM schedules
+        JOIN events ON schedules.event_id = events.id WHERE events.date_timestamp >= ? """, (since_timestamp)
+    )
+    rows = cursor.fetchall()
+    conn.close()
+    return rows

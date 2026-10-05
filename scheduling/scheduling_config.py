@@ -2,7 +2,6 @@
 DEADLOCK_STAFF_ROLES = [
     "Tournament Admin",
     "Stream Moderator",
-    "Player Moderator",
     "Talent",
     "Observer",
     "Producer",
@@ -25,8 +24,16 @@ STATUS_LABEL = {
 }
 
 REQUIRE_DISCORD_ROLE = True
-EDIT_AND_RESET_ROLES = ("The Big Cheeses", "Admin", "Mod")
+EDIT_AND_RESET_ROLES = ("The Big Cheeses", "Server Guardians" "Admin", "Mod", "Management")
 RESET_CLEAR_SIGNUPS = False
+
+ROLE_REQUIREMENT = {
+    "Tournament Admin": "DEADLOCK Tournament Admin",
+    "Stream Moderator": ("DEADLOCK Tournament Admin", "DEADLOCK Moderator"),
+    "Talent": "DEADLOCK Talent",
+    "Observer": "DEADLOCK Observer",
+    "Producer": "DEADLOCK Producer",
+}
 
 DEFAULT_TIMEZONE = "UTC"
 SETTINGS_KEYS = (

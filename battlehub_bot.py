@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 from dotenv import load_dotenv
 import os
+import asyncio
 from database import init_db
 from common.bot_launch import bot
 from common.embed import create_embed
@@ -11,6 +12,7 @@ from tickets.ticket_handler import handle_ticket_dm
 from moderation.logs_helpers import log_command_usage, member_ban, member_join, member_leave, role_update, check_honeypot
 from moderation.moderation_helpers import timeout_update
 from moderation.flagging_helpers import scan_message_for_flags
+from scheduling.scheduling_views import ScheduleView, refresh_schedule_posts
 from welcome.welcome_helpers import send_welcome
 import announcements.news_commands
 import bhcommands.commands
@@ -45,6 +47,11 @@ async def on_ready():
         
     if not check_stale_tickets.is_running():
         check_stale_tickets.start()
+    
+    if not getattr(bot, "schedule_ready", False):
+        bot.schedule_ready = True
+        bot.add_view(ScheduleView())
+        bot.schedule_refresh_task = asyncio.create_task(refresh_schedule_posts(bot))
 
 # !sync -- Syncs commands from dev testing to VPS version
 @bot.command()

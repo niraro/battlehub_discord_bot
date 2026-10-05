@@ -5,7 +5,7 @@ from bhcommands.command_helpers import build_command_page
 
 class CommandPageView(discord.ui.View):
     def __init__(self, ctx):
-        super().__init__(timeout = 120) # 2 minutes before buttons are considered inactive
+        super().__init__(timeout = None)
         self.ctx = ctx
         self.index = 0
         self.add_item(CategorySelect(self))
@@ -43,7 +43,7 @@ class CommandPageView(discord.ui.View):
 class CategorySelect(discord.ui.Select):
     def __init__(self, page_view):
         options = [discord.SelectOption(label = title, value = str(i)) for i, (title, _) in enumerate(COMMAND_CATEGORIES)]
-        super().__init__(placeholder = "Command Category", options = options)
+        super().__init__(placeholder = "Commands List", options = options)
         self.page_view = page_view
     
     async def callback(self, interaction: discord.Interaction):

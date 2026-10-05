@@ -188,15 +188,28 @@ async def handle_click(interaction, action):
     mine = get_user_roles(event_id, uid, guild_id)
     
     if schedule.REQUIRE_DISCORD_ROLE and action in schedule.DEADLOCK_STAFF_ROLES and action not in mine:
-        role_obj = discord.utils.find(lambda r: r.name.lower() == action.lower(), interaction.guild.roles)
-        if role_obj and role_obj not in interaction.user.roles:
-            embed = create_embed(
-                title = "⚠️ Role Mismatch",
-                description = f"You do not have the `{role_obj.name}` role",
-                colour = discord.Colour.red()
-            )
-            await interaction.response.send_message(embed = embed, ephemeral = True)
-            return
+        required = schedule.ROLE_REQUIREMENT.get(action)    
+        if required:
+            names = [required] if isinstance(required, str) else list(required)
+            wanted = {n.lower() for n in names}
+            shown = " or ".join(f"`{n}`" for n in names)
+
+            if not any(r.name.lower() in wanted for r in interaction.guild.roles):
+                embed = create_embed(
+                    title = "⚠️ Role Not Found",
+                    description = f"The {shown} role doesn't exist in this server. Sign-ups cannot be checked for it",
+                    colour = discord.Colour.red()
+                )
+                await interaction.response.send_message(embed = embed, ephemeral = True)
+                return
+            if not any(r.name.lower() in wanted for r in interaction.user.roles):
+                embed = create_embed(
+                    title = "⚠️ Role Mismatch",
+                    description = f"You do not have the `{shown}` role",
+                    colour = discord.Colour.red()
+                )
+                await interaction.response.send_message(embed = embed, ephemeral = True)
+                return
         
     if action == schedule.WITHDRAW:
         remove_signups(event_id, uid, guild_id)
@@ -210,7 +223,7 @@ async def handle_click(interaction, action):
         if schedule.MAYBE in mine:
             remove_signups(event_id, uid, guild_id, [schedule.MAYBE])
         else:
-            remove_signups(event_id, uid, guild_id, [schedule.UNAVAILABLE])
+            remove_signups(event_id, uid, guild_id)
             add_signup(event_id, uid, schedule.MAYBE, schedule.STATUS_MAYBE, guild_id)
     else:
         if action in mine:

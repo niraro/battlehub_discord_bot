@@ -94,7 +94,7 @@ async def flagged_message(bot, message, matched_terms):
     )
     if embed_image_filename:
         review_embed.set_image(url = f"attachment://{embed_image_filename}")
-    exempt_roles = {"Admin", "Moderator"}
+    exempt_roles = {"The Big Cheeses", "Server Guardians", "Admin", "Mod"}
     mentions = [r.mention for r in message.guild.roles if r.name in exempt_roles]
     if mentions:
         await log_channel.send(f"🚨🚨 Message flagged! Need staff review! 🚨🚨 {' '.join(mentions)}")

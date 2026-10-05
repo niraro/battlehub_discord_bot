@@ -1,8 +1,10 @@
 import discord
 import traceback
+import asyncio
+import time
 from common.embed import create_embed
 from database.scheduling_db import (
-    create_schedule, get_schedule_by_message, get_availability_by_event, update_schedule_times, delete_schedule_by_event, delete_schedule_data_for_event
+    create_schedule, get_schedule_by_message, get_availability_by_event, update_schedule_times, delete_schedule_by_event, delete_schedule_data_for_event, get_active_schedules
 )
 from scheduling.scheduling_config import UNAVAILABLE, MAYBE, WITHDRAW, EDIT, RESET, DEADLOCK_STAFF_ROLES, RESET_CLEAR_SIGNUPS
 from scheduling.scheduling_helpers import (
@@ -262,3 +264,31 @@ class ResetConfirmView(discord.ui.View):
         )
         await interaction.response.edit_message(embed = embed, view = None)
         self.stop()
+        
+def _message_button_ids(message):
+    return {
+        child.custom_id
+        for row in message.components
+        for child in getattr(row, "children", [])
+        if getattr(child, "custom_id", None)
+    }
+    
+async def refresh_schedule_posts(bot):
+    wanted_ids = {item.custom_id for item in ScheduleView().children}
+    refreshed = 0
+    for (event_id, guild_id, channel_id, message_id, call, start, deadline, ping_role_id, calendar_url, name, event_ts) in get_active_schedules(int(time.time()) - 86400):
+        try:
+            channel = bot.get_channel(int(channel_id)) or await bot.fetch_channel(int(channel_id))
+            message = await channel.fetch_message(int(message_id))
+            signups = group_signups(get_availability_by_event(event_id, guild_id))
+            content = render_schedule(name, event_ts, int(call), int(start), int(deadline), signups, ping_role_id, calendar_url)
+            if _message_button_ids(message) == wanted_ids and message.content == content:
+                continue
+            await message.edit(content = content, view = ScheduleView(), allowed_mentions = NO_PINGS)
+            refreshed += 1
+            await asyncio.sleep(1)
+        except (discord.NotFound, discord.Forbidden):
+            continue
+        except discord.HTTPException as e:
+            print(f"Could not refresh schedule post {message}: {e}")
+    return refreshed

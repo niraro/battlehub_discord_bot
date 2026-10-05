@@ -24,7 +24,7 @@ STATUS_LABEL = {
 }
 
 REQUIRE_DISCORD_ROLE = True
-EDIT_AND_RESET_ROLES = ("The Big Cheeses", "Server Guardians" "Admin", "Mod", "Management")
+EDIT_AND_RESET_ROLES = ("The Big Cheeses", "Server Guardians", "Admin", "Mod", "Management")
 RESET_CLEAR_SIGNUPS = False
 
 ROLE_REQUIREMENT = {

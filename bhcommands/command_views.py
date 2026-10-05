@@ -1,5 +1,5 @@
 import discord
-from bhcommands.battlehub_commands import COMMAND_CATEGORIES
+from bhcommands.command_config import COMMAND_CATEGORIES
 from bhcommands.command_helpers import build_command_page
 
 

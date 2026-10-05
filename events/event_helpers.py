@@ -1,5 +1,6 @@
 import re
 from zoneinfo import ZoneInfo
+from database.events_db import get_all_events
 
 
 DATE_REGEX = re.compile(r"^\d{2}-\d{2}-\d{4}$")
@@ -20,3 +21,10 @@ def looks_like_shifted_args(time_str, tz_name):
     except Exception as e:
         return False
     return True
+
+def get_event_from_list(name, guild_id):
+    events = get_all_events(guild_id)
+    for event in events:
+        if event[1].lower() == name.lower():
+            return event
+    return None

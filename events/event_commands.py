@@ -4,8 +4,8 @@ from zoneinfo import ZoneInfoNotFoundError
 from common.bot_launch import bot
 from common.unix_timestamp import get_discord_timestamp
 from common.embed import create_embed
-from database.events_db import add_event, event_remove, get_event_from_list, get_all_events
-from events.event_helpers import looks_like_shifted_args, DATE_REGEX
+from database.events_db import add_event, event_remove, get_all_events
+from events.event_helpers import looks_like_shifted_args, DATE_REGEX, get_event_from_list
 from events.event_views import MonthSelectView
 
 # Uses !addevent for command -- Adds new event to the list, which can be then viewed by anyone

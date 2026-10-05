@@ -1,4 +1,4 @@
-from bhcommands.battlehub_commands import COMMAND_CATEGORIES
+from bhcommands.command_config import COMMAND_CATEGORIES
 from common.embed import create_embed
 
 

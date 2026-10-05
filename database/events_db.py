@@ -47,13 +47,6 @@ def get_all_events(guild_id):
     rows = cursor.fetchall()
     conn.close()
     return rows
-
-def get_event_from_list(name, guild_id):
-    events = get_all_events(guild_id)
-    for event in events:
-        if event[1].lower() == name.lower():
-            return event
-    return None
     
 def get_events_by_date_range(start_ts, end_ts, guild_id):
     conn = sqlite3.connect(DB_FILE)

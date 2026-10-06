@@ -57,12 +57,18 @@ def parse_schedule_input(event_ts, call_text, start_text, deadline_text, tz_text
     except ValueError:
         raise ScheduleInputError(
             "Invalid Date/Time",
-            "Use `HH:MM` format for times, and `DD-MM-YYYY format for dates"
+            "Use `HH:MM` format for times, and `DD-MM-YYYY` format for dates"
         )
     if call > start:
-        raise ScheduleInputError("Call time must be earlier or same time as broadcast start")
+        raise ScheduleInputError(
+            "Invalid Call Time",
+            "Call time must be earlier or same time as broadcast start"
+        )
     if deadline > call:
-        raise ScheduleInputError("Sign-up deadline must be before call time")
+        raise ScheduleInputError(
+            "Invalid Sign-up Deadline",
+            "Sign-up deadline must be before call time"
+        )
     return call, start, deadline, tz_text.strip()
 
 
@@ -84,7 +90,7 @@ def render_schedule(name, event_ts, call, start, deadline, signups, ping_role_id
         people = signups.get(role, [])
         names = ", ".join(f"<@{u}>" for u in people) if people else "-"
         lines.append(f"**{role}:** {names}")
-    lines += ["", "*Click a role to sign up. Click again to withdraw"]
+    lines += ["", "_Click a role to sign up. Click again to withdraw_"]
     if ping_role_id:
         lines.append(f"<@&{ping_role_id}>")
     if time.time() > deadline:
@@ -140,7 +146,7 @@ async def _build_availability_breakdown(ctx_or_interaction, event, guild_id):
         if not responses:
             continue
         lines.append(f"**{role}**")
-        for discord_id, note, in responses:
+        for discord_id, note in responses:
             member = ctx_or_interaction.guild.get_member(int(discord_id))
             name = member.display_name if member else f"Unknown member: `{discord_id}`"
             note_text = f"_({note}_)" if note else ""

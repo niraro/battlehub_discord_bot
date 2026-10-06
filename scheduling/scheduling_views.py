@@ -132,7 +132,7 @@ class ScheduleModal(discord.ui.Modal, title = "Event Time Details"):
         await interaction.followup.send(embed = embed, ephemeral = True)
     
     async def on_error(self, interaction: discord.Interaction, error: Exception):
-        traceback.print_exception(Exception)
+        traceback.print_exception(error)
         embed = create_embed(
             title = "⚠️ Oops",
             description = "Schedule could not be created",
@@ -290,5 +290,5 @@ async def refresh_schedule_posts(bot):
         except (discord.NotFound, discord.Forbidden):
             continue
         except discord.HTTPException as e:
-            print(f"Could not refresh schedule post {message}: {e}")
+            print(f"Could not refresh schedule post {message_id}: {e}")
     return refreshed

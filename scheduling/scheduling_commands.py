@@ -69,7 +69,7 @@ async def buildschedule(ctx, *, event: str):
         embed = create_embed(
             title = "⚠️ Event Not Found",
             description = "Make sure the name of event is spelt correctly (check typos, etc)",
-            colour = discord.Colour.red
+            colour = discord.Colour.red()
         )
         await ctx.send(embed = embed, ephemeral = True)
         return
@@ -232,7 +232,7 @@ async def eventavail(ctx, *, event: str):
     
 @eventavail.error
 async def eventavail_error(ctx, error):
-    await _handle_error(ctx.error, "Make sure to include the `Event Name`")
+    await _handle_error(ctx, error, "Make sure to include the `Event Name`")
     
     
 # Uses command !dateavail -- Allows user to see availabilities of others for an event on a given date    
@@ -243,13 +243,13 @@ async def dateavail(ctx, date: str, timezone: str):
     if tz is None:
        embed = create_embed(
            title = "⚠️ Invalid Timezone",
-           description = "Make sure the timezone entered follows the IANA Timezone name (E.g. \"Ameica/Toronto\", \"Europe/Berlin\"",
+           description = "Make sure the timezone entered follows the IANA Timezone name (E.g. \"America/Toronto\", \"Europe/Berlin\")",
            colour = discord.Colour.red()
        )
        await ctx.send(embed = embed, ephemeral = True)
        return
     try:
-        day_start = datetime.strptime("date, %d-%m-%Y").replace(tzinfo = tz)
+        day_start = datetime.strptime(date, "%d-%m-%Y").replace(tzinfo = tz)
     except ValueError:
         embed = create_embed(
             title = "⚠️ Invalid Date",
@@ -270,7 +270,7 @@ async def dateavail(ctx, date: str, timezone: str):
         await ctx.send(embed = embed)
         return
     if len(events) == 1:
-        embed = await _build_availability_breakdown(ctx.event[0], str(ctx.guild.id))
+        embed = await _build_availability_breakdown(ctx, events[0], str(ctx.guild.id))
         await ctx.send(embed = embed)
         return
     

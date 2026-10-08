@@ -1,39 +1,24 @@
 import discord
 from discord.ext import commands
 from common.bot_launch import bot
-from common.embed import create_embed_with_footer, create_embed
+from common.embed import create_embed
+from common.error_handlers import handle_error
+from announcements.post_views import PostModal, OpenPostModal
 
 # Uses !post for command -- Bot takes input message, posts it, and removes original command
 @bot.hybrid_command(description = "Announcement/news posts")  
 @commands.has_any_role("The Big Cheeses", "Server Guardians", "Admin", "Mod")
-async def post(ctx, *, message: str):
-    embed = create_embed_with_footer(
-        title = "📢 Announcement", 
-        description = message
-    )
-    await ctx.send(embed = embed, content = "")
-    if ctx.interaction is None:
-        await ctx.message.delete()
+@commands.guild_only()
+async def post(ctx):
+    if ctx.interaction is not None:
+        await ctx.interaction.response.send_modal(PostModal())
+    else:
+        embed = create_embed(
+            title = "📝 New Post",
+            description = "Click the button below to write your post"
+        )
+        await ctx.send(embed = embed, view = OpenPostModal(ctx.author.id))
     
 @post.error
 async def post_error(ctx, error):
-    original = error
-    while hasattr(original, "original"):
-        original = original.original
-    
-    if isinstance(error, commands.MissingAnyRole):
-        await ctx.message.delete()
-        return
-    elif isinstance(error, commands.MissingRequiredArgument):
-        embed = create_embed(
-            title = "⚠️ Missing Info",
-            description = "Make sure to include a message in the post",
-            colour = discord.Colour.red()
-        )
-    else:
-        embed = create_embed(
-            title = "⚠️ Something Went Wrong",
-            description = f"Unexpected Error: `{type(original).__name__}:` {original}",
-            colour = discord.Colour.red()
-        )
-    await ctx.send(embed = embed, ephemeral = True)
+    await handle_error(ctx, error, "Check the options you entered, then try again")

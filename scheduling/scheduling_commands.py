@@ -1,10 +1,10 @@
 import discord
 import time
-import traceback
 from discord.ext import commands
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from common.bot_launch import bot
+from common.error_handlers import handle_error
 from common.embed import create_embed
 from database.scheduling_db import get_schedule_by_event, get_availability_by_user, delete_schedule_by_event, set_broadcast_settings
 from database.events_db import  get_events_by_date_range, get_all_events
@@ -14,38 +14,6 @@ from scheduling.scheduling_helpers import _build_availability_breakdown, load_se
 from scheduling.scheduling_views import ScheduleModal, OpenScheduleModalView
 from events.event_views import EventSelectView
 
-
-async def _handle_error(ctx, error, missing_info_text):
-    original = error
-    while hasattr(original, "original"):
-        original = original.original
-        
-    if isinstance(error, commands.MissingAnyRole):
-        if ctx.interaction is None:
-            await ctx.message.delete()
-        else:
-            await ctx.send("You don't have permission to use this command", ephemeral = True)
-        return
-    elif isinstance(error, commands.MissingRequiredArgument):
-        embed = create_embed(
-            title = "⚠️ Missing Info",
-            description = missing_info_text,
-            colour = discord.Colour.red()
-        )
-    elif isinstance(original, commands.MemberNotFound):
-        embed = create_embed(
-            title = "⚠️ User Not Found",
-            description = f"Couldn't find `{original.argument}`. Try adding an '@' in front of their name, or use their user ID",
-            colour = discord.Colour.red()
-        )
-    else:
-        traceback.print_exception(original)
-        embed = create_embed(
-            title = "⚠️ Something Went Wrong",
-            description = f"Unexpected Error: {type(original).__name__}: {original}",
-            colour = discord.Colour.red()
-        )
-    await ctx.send(embed = embed, ephemeral = True)
     
 async def _schedule_message_exists(guild, channel_id, message_id):
     channel = guild.get_channel_or_thread(int(channel_id))
@@ -111,7 +79,7 @@ async def schedule_event_autocomplete(interaction: discord.Interaction, current:
 
 @buildschedule.error
 async def schedule_error(ctx, error):
-    await _handle_error(ctx, error, "Make sure to include the name of the event")
+    await handle_error(ctx, error, "Make sure to include the name of the event")
     
     
 @bot.hybrid_command(description = "Adjust 'default' settings for future event schedule builds")
@@ -188,7 +156,7 @@ async def schedulesettings(ctx, call_time: str = None, broadcast_start: str = No
 
 @schedulesettings.error
 async def schedulesettings_error(ctx, error):
-    await _handle_error(ctx, error, "Check the options you entered and try again")
+    await handle_error(ctx, error, "Check the options you entered and try again")
     
 
 # Uses command !checkavail -- Check user availability for a specific role, or availability of all users on a specific date
@@ -211,7 +179,7 @@ async def checkavail(ctx, *, member: discord.Member):
     
 @checkavail.error
 async def checkavail_error(ctx, error):
-    await _handle_error(ctx, error, "Don't forget to add the user's name, or ID")
+    await handle_error(ctx, error, "Don't forget to add the user's name, or ID")
     
     
 # Uses command !eventavail -- Displays availability of users for specific roles on a given event
@@ -232,7 +200,7 @@ async def eventavail(ctx, *, event: str):
     
 @eventavail.error
 async def eventavail_error(ctx, error):
-    await _handle_error(ctx, error, "Make sure to include the `Event Name`")
+    await handle_error(ctx, error, "Make sure to include the `Event Name`")
     
     
 # Uses command !dateavail -- Allows user to see availabilities of others for an event on a given date    
@@ -284,5 +252,5 @@ async def dateavail(ctx, date: str, timezone: str):
     
 @dateavail.error
 async def dateavail_error(ctx, error):
-    await _handle_error(ctx, error, "Make sure the format is `<DD-MM-YYYY> <Timezone>`")
+    await handle_error(ctx, error, "Make sure the format is `<DD-MM-YYYY> <Timezone>`")
     

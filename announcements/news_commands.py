@@ -1,4 +1,3 @@
-import discord
 from discord.ext import commands
 from common.bot_launch import bot
 from common.embed import create_embed

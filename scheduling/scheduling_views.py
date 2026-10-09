@@ -3,12 +3,13 @@ import traceback
 import asyncio
 import time
 from common.embed import create_embed
+from common.general_helpers import NO_PINGS
 from database.scheduling_db import (
     create_schedule, get_schedule_by_message, get_availability_by_event, update_schedule_times, delete_schedule_by_event, delete_schedule_data_for_event, get_active_schedules
 )
 from scheduling.scheduling_config import UNAVAILABLE, MAYBE, WITHDRAW, EDIT, RESET, DEADLOCK_STAFF_ROLES, RESET_CLEAR_SIGNUPS
 from scheduling.scheduling_helpers import (
-    NO_PINGS, handle_click, render_schedule, suggest_deadline, parse_schedule_input, ScheduleInputError, is_manager, format_for_edit, group_signups
+    handle_click, render_schedule, suggest_deadline, parse_schedule_input, ScheduleInputError, is_manager, format_for_edit, group_signups
 )
 
 

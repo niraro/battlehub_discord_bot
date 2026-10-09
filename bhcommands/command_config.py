@@ -9,11 +9,11 @@ HELPFUL_RESOURCES = [
 
 GENERAL_COMMANDS = [
     ("bhcommands", "Show all available BattleBot commands, shown by features. Also uses format `!bhcommands`"),
-    ("timeconvert", "Convert a date and time into Discord format. Uses format `!timeconvert <DD-MM-YYYY> <HH:MM> <IANA Timezone>` **NB: IANA Timezone example: America/Edmonton**"),
+    ("timeconvert", "Convert a date and time into Discord format. Uses format `!timeconvert <DD-MM-YYYY> <HH:MM> <Timezone>` **NB: IANA Timezone example: America/Edmonton, but can also use the abbreviations (e.g. EST, CET)**"),
 ]
 
 NEWS_AND_ANNOUNCEMENTS = [
-    ("post", "Post an announcement in an embed. Links work, but pings turn into mentions, and will not notify user(s) and/or roles. Can also us the format `!post <Message>`"),
+    ("post", "Post an announcement in an embed. The description (message) can use markdowns, links, and embeds. Channel can be selected. Roles/users can be selected, including `@everyone` and `@here`. Also uses the format `!post`"),
     ("setwelcomemessage", "Set a custom welcome message to an assigned channel. Also uses format `!setwelcomemessage <Channel Name/Channel ID> <Message>`. **NB: When adding emojis, if the bot does not have access to them (i.e. bot is not in the emoji's server), the emoji will not show. Global and server-specific emojis work**"),
 ]
 

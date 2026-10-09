@@ -6,11 +6,12 @@ from zoneinfo import ZoneInfo
 from common.bot_launch import bot
 from common.error_handlers import handle_error
 from common.embed import create_embed
+from common.general_helpers import get_zone, parse_time
 from database.scheduling_db import get_schedule_by_event, get_availability_by_user, delete_schedule_by_event, set_broadcast_settings
 from database.events_db import  get_events_by_date_range, get_all_events
 from events.event_helpers import get_event_from_list
 from scheduling.scheduling_config import SETTINGS_KEYS
-from scheduling.scheduling_helpers import _build_availability_breakdown, load_settings, get_zone, parse_time, format_settings, describe_entry
+from scheduling.scheduling_helpers import _build_availability_breakdown, load_settings, format_settings, describe_entry
 from scheduling.scheduling_views import ScheduleModal, OpenScheduleModalView
 from events.event_views import EventSelectView
 
@@ -114,7 +115,7 @@ async def schedulesettings(ctx, call_time: str = None, broadcast_start: str = No
         if get_zone(timezone) is None:
             embed = create_embed(
                 title = "⚠️ Invalid Timezone",
-                description = "Make sure the timezone entered follows the IANA Timezone name (E.g. \"Ameica/Toronto\", \"Europe/Berlin\")",
+                description = "Make sure the timezone entered is an existing abbreviation, or a IANA Timezone name (E.g. EST, CEST, \"America/Toronto\", \"Europe/Berlin\")",
                 colour = discord.Colour.red()
             )
             await ctx.send(embed = embed, ephemeral = True)
@@ -211,7 +212,7 @@ async def dateavail(ctx, date: str, timezone: str):
     if tz is None:
        embed = create_embed(
            title = "⚠️ Invalid Timezone",
-           description = "Make sure the timezone entered follows the IANA Timezone name (E.g. \"America/Toronto\", \"Europe/Berlin\")",
+           description = "Make sure the timezone entered is an existing abbreviation or an IANA Timezone name (E.g. EST, CEST, \"America/Toronto\", \"Europe/Berlin\")",
            colour = discord.Colour.red()
        )
        await ctx.send(embed = embed, ephemeral = True)

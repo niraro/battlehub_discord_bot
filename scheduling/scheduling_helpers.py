@@ -3,25 +3,16 @@ import time
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from common.embed import create_embed
+from common.general_helpers import NO_PINGS, get_zone
 from database.scheduling_db import get_availability_by_event, get_broadcast_settings, get_schedule_by_message, get_user_roles, add_signup, remove_signups
 import scheduling.scheduling_config as schedule
 
-NO_PINGS = discord.AllowedMentions.none()
 
 def load_settings(guild_id):
     row = get_broadcast_settings(guild_id)
     if not row:
         return dict(schedule.DEFAULT_SETTINGS)
     return dict(zip(schedule.SETTINGS_KEYS, row))
-
-def get_zone(tz_name):
-    try:
-        return ZoneInfo(tz_name.strip())
-    except Exception:
-        return None
-    
-def parse_time(text):
-    return datetime.strptime(text.strip(), "%H:%M").strftime("%H:%M")
 
 def suggest_deadline(event_ts, settings):
     tz = get_zone(settings["timezone"]) or ZoneInfo("UTC")
@@ -45,7 +36,7 @@ def parse_schedule_input(event_ts, call_text, start_text, deadline_text, tz_text
     if tz is None:
         raise ScheduleInputError(
             "Invalid Timezone",
-            "Make sure the timezone entered is an IANA Timezone name (E.g. \"America/Edmonton\", \"Europe/Berlin\", etc)"
+            "Make sure the timezone entered is an existing abbreviation or an IANA Timezone name (E.g. EST, CEST, \"America/Edmonton\", \"Europe/Berlin\", etc)"
         )
     try:
         event_date = datetime.fromtimestamp(event_ts, tz).date()

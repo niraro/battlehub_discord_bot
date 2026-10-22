@@ -103,15 +103,21 @@ def get_all_log_settings(guild_id):
     conn.close()
     return rows
 
-def add_flagged_term(guild_id, term, added_by):
+def add_flagged_term(guild_id, terms, added_by):
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     cursor.execute(
+        "SELECT term FROM flagged_terms WHERE guild_id = ?", (guild_id,)
+    )
+    existing = {r[0] for r in cursor.fetchall()}
+    new_terms = [t for t in terms if t not in existing]
+    cursor.executemany(
         "INSERT INTO flagged_terms (guild_id, term, added_by) VALUES (?, ?, ?)", 
-        (guild_id, term.lower(), added_by)
+        [(guild_id, t, added_by) for t in new_terms]
     )
     conn.commit()
     conn.close()
+    return new_terms, [t for t in terms if t in existing]
 
 def remove_flagged_term(guild_id, term):
     conn = sqlite3.connect(DB_FILE)

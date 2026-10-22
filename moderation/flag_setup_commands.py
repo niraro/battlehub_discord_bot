@@ -3,48 +3,38 @@ from discord import app_commands
 from discord.ext import commands
 from common.bot_launch import bot
 from common.embed import create_embed
-from database.moderation_db import add_flagged_term, remove_flagged_term, add_flagged_domain, remove_flagged_domain, add_scam_hash
-from moderation.flagging_helpers import compute_phash
+from common.error_handlers import handle_error
+from common.general_helpers import clean_term
+from database.moderation_db import remove_flagged_term, add_flagged_domain, remove_flagged_domain, add_scam_hash
+from moderation.flagging_helpers import compute_phash, add_terms_and_report
+from moderation.flag_setup_views import AddTermModal, OpenAddTermView
 
 
-@bot.hybrid_command(description = "Add flagged terms to flag list")
+@bot.hybrid_command(description = "Add flagged terms to flag list. Leave the term empty to add several at once")
 @commands.has_any_role("The Big Cheeses", "Server Guardians", "Admin", "Mod")
-async def addflaggedterm(ctx, *, term: str):
-    add_flagged_term(str(ctx.guild.id), term, str(ctx.author))
-    embed = create_embed(
-        title = "✅ Term Added",
-        description = f"`{term}` will now be flagged"
-    )
-    await ctx.send(embed = embed, ephemeral = True)
+async def addflaggedterm(ctx, *, term: str = None):
+    cleaned = clean_term(term)
+    if cleaned:
+        embed = add_terms_and_report(str(ctx.guild.id), [cleaned], str(ctx.author))
+        await ctx.send(embed = embed, ephemeral = True)
+    elif ctx.interaction is not None:
+        await ctx.interaction.response.send_modal(AddTermModal())
+    else:
+        embed = create_embed(
+            title = "📝 Add Flagged Terms",
+            description = "Click the button below to add several terms at once"
+        )
+        await ctx.send(embed = embed, view = OpenAddTermView(ctx.author.id))
 
 @addflaggedterm.error
 async def addflaggedterm_error(ctx, error):      
-    original = error
-    while hasattr(original, "original"):
-        original = original.original
-    
-    if isinstance(error, commands.MissingAnyRole):
-        await ctx.message.delete()
-        return
-    elif isinstance(error, commands.MissingRequiredArgument):
-        embed = create_embed(
-            title = "⚠️ Missing Term(s)",
-            description = "Don't forget to add a term that will get flagged",
-            colour = discord.Colour.red()
-        )
-    else:
-        embed = create_embed(
-            title = "⚠️ Something Went Wrong",
-            description = f"Unexpected Error: `{type(original).__name__}:` {original}",
-            colour = discord.Colour.red()
-        )  
-    await ctx.send(embed = embed, ephemeral = True)
+    await handle_error(ctx, error, "Check the options entered and try again")
     
     
 @bot.hybrid_command(description = "Remove flagged terms from flag list")
 @commands.has_any_role("The Big Cheeses", "Server Guardians", "Admin", "Mod")
 async def removeflaggedterm(ctx, *, term: str):
-    deleted = remove_flagged_term(str(ctx.guild.id), term)
+    deleted = remove_flagged_term(str(ctx.guild.id), clean_term(term))
     if deleted:
         embed = create_embed(
             title = "🗑️ Term Removed",

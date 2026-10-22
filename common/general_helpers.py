@@ -1,4 +1,5 @@
 import discord
+import re
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo, available_timezones
 
@@ -96,3 +97,16 @@ def parse_time(text):
 
 def discord_timestamp(unix, style = "F"):
     return f"<t:{int(unix)}:{style}>"
+
+def clean_term(text):
+    return " ".join((text or "").split()).lower()
+
+def parse_term_list(text):
+    list = set()
+    terms = []
+    for part in re.split(r"[,\n]", text or ""):
+        term = clean_term(part)
+        if term and term not in list:
+            list.add(term)
+            terms.append(term)
+    return terms

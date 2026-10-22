@@ -6,11 +6,14 @@ import imagehash
 from PIL import Image
 from urllib.parse import urlparse
 from common.embed import create_embed
-from database.moderation_db import get_log_channel, get_flagged_terms, get_flagged_domains, get_scam_hash, create_pending_review
+from database.moderation_db import get_log_channel, get_flagged_terms, get_flagged_domains, get_scam_hash, create_pending_review, add_flagged_term
 from moderation.moderation_views import FlaggedMessageView
 
 
 URL_REGEX = re.compile(r'https?://[^\s<>"]+')
+MIN_TERM_LENGTH = 2
+MAX_TERM_LENGTH = 100
+MAX_TERMS_PER_SUBMISSION = 50
 
 # Audit log for flagged messages/regular messages
 def find_matched_terms(content, terms):
@@ -19,10 +22,49 @@ def find_matched_terms(content, terms):
     lowered = content.lower()
     matched = []
     for term in terms:
-        pattern = r'\b' + re.escape(term) + r'\b'
+        pattern = r'(?<!\w)' + re.escape(term) + r'(?!\w)'
+        #pattern = r'\b' + re.escape(term) + r'\b'
         if re.search(pattern, lowered):
             matched.append(term)
     return matched
+
+def _format_terms(terms, limit = 15):
+    shown = [t if len(t) <= 40 else t[:37] + "..." for t in terms[:limit]]
+    text = ", ".join(f"`{t}`" for t in shown)
+    if len(terms) > limit:
+        text += f" and {len(terms) - limit} more"
+    return text
+
+def add_terms_and_report(guild_id, terms, added_by):
+    if len(terms) > MAX_TERMS_PER_SUBMISSION:
+        return create_embed(
+            title = "⚠️ Too Many Terms",
+            description = f"Add up to {MAX_TERMS_PER_SUBMISSION} terms at a time. You entered {len(terms)}, so nothing was added",
+            colour = discord.Colour.red()
+        )
+    valid = [t for t in terms if MIN_TERM_LENGTH <= len(t) <= MAX_TERM_LENGTH]
+    invalid = [t for t in terms if t not in valid]
+    added, existing = add_flagged_term(guild_id, valid, added_by) if valid else ([], [])
+    
+    sections = []
+    if added:
+        sections.append(f"**Added ({len(added)}):** {_format_terms(added)}")
+    if existing:
+        sections.append(f"**Already in the list ({len(existing)}):** {_format_terms(existing)}")
+    if invalid:
+        sections.append(f"**Skipped, must be {MIN_TERM_LENGTH} to {MAX_TERM_LENGTH} characters ({len(invalid)}):** {_format_terms(invalid)}")
+    description = "\n\n".join(sections)
+    
+    if added:
+        return create_embed(
+            title = "✅ Terms Added",
+            description = description
+        )
+    return create_embed(
+        title = "⚠️ No Terms Added",
+        description = description,
+        colour = discord.Colour.red()
+    )
 
 async def scan_message_for_flags(bot, message):
     if message.author.bot:

@@ -206,7 +206,7 @@ async def check_honeypot(bot, message):
     if message.author.bot:
         return False
     guild_id = str(message.guild.id)
-    exempt_roles = {"Mod", "Admin"}
+    exempt_roles = {"Mod", "Admin", "The Big Cheeses", "Server Guardians"}
     if any(r.name in exempt_roles for r in message.author.roles):
         return False
     if not is_honeypot_channel(guild_id, str(message.channel.id)):
@@ -214,7 +214,7 @@ async def check_honeypot(bot, message):
     
     try:
         await message.delete()
-    except discord.NotFound():
+    except discord.NotFound:
         pass
     
     try:

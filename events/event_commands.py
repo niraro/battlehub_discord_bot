@@ -8,7 +8,7 @@ from database.events_db import add_event, event_remove, get_all_events
 from events.event_helpers import looks_like_shifted_args, DATE_REGEX, get_event_from_list
 from events.event_views import MonthSelectView
 
-# Uses !addevent for command -- Adds new event to the list, which can be then viewed by anyone
+
 @bot.hybrid_command(description = "Adds a new event to the list of upcoming events")
 @commands.has_any_role("The Big Cheeses", "Server Guardians", "Admin", "Mod")
 async def addevent(ctx, name: str, date: str, time: str, *, timezone: str):
@@ -71,7 +71,6 @@ async def addevent_error(ctx, error):
     await ctx.send(embed = embed, ephemeral = True)
 
 
-# Uses !remove_event for command -- Removes the event from the list (deletes it from the database)
 @bot.hybrid_command(description = "Removes an event from the list of upcoming events")
 @commands.has_any_role("The Big Cheeses", "Server Guardians", "Admin", "Mod")
 async def remove_event(ctx, name: str):
@@ -116,7 +115,6 @@ async def remove_event_error(ctx, error):
     await ctx.send(embed = embed, ephemeral = True)
 
 
-# Uses !showevents -- Shows all upcoming events (name, date, and time)
 @bot.hybrid_command(description = "Shows all upcoming events")
 async def showevents(ctx):
     events = get_all_events(str(ctx.guild.id))
@@ -141,7 +139,6 @@ async def showevents_error(ctx, error):
     await ctx.send(embed = embed, ephemeral = True)
 
     
-# Uses command !checkcalendar -- Allows user to check events for chosen month    
 @bot.hybrid_command(description = "Check event(s) for the chosen month")
 async def checkcalendar(ctx, timezone: str):
     view = MonthSelectView(timezone, str(ctx.guild.id))

@@ -160,7 +160,6 @@ async def schedulesettings_error(ctx, error):
     await handle_error(ctx, error, "Check the options you entered and try again")
     
 
-# Uses command !checkavail -- Check user availability for a specific role, or availability of all users on a specific date
 @bot.hybrid_command(description = "Check availability(ies) of a specified user")
 @commands.has_any_role("The Big Cheeses", "Server Guardians", "Admin", "Mod")
 async def checkavail(ctx, *, member: discord.Member):
@@ -183,7 +182,6 @@ async def checkavail_error(ctx, error):
     await handle_error(ctx, error, "Don't forget to add the user's name, or ID")
     
     
-# Uses command !eventavail -- Displays availability of users for specific roles on a given event
 @bot.hybrid_command(description = "Shows staff availability for specified event")
 @commands.has_any_role("The Big Cheeses", "Server Guardians", "Admin", "Mod")
 async def eventavail(ctx, *, event: str):
@@ -204,7 +202,6 @@ async def eventavail_error(ctx, error):
     await handle_error(ctx, error, "Make sure to include the `Event Name`")
     
     
-# Uses command !dateavail -- Allows user to see availabilities of others for an event on a given date    
 @bot.hybrid_command(description = "Show availabilities of a chosen date for upcoming event(s)")
 @commands.has_any_role("The Big Cheeses", "Server Guardians", "Admin", "Mod")
 async def dateavail(ctx, date: str, timezone: str):

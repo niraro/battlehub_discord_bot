@@ -6,7 +6,7 @@ from common.embed import create_embed
 from common.error_handlers import error_embed, handle_error
 from common.general_helpers import get_zone, normalise_zone_name, is_abbreviation, get_timezone_choices, discord_timestamp
 
-# Uses !timeconvert for command -- Converts given date and time to Discord-formatted unix timestamp
+
 @bot.hybrid_command(description = "Converts date and time to Discord-formatted unix timestamp")  
 @discord.app_commands.describe(
     date = "DD-MM-YYYY",

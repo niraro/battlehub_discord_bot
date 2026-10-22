@@ -26,7 +26,7 @@ EVENT_COMMANDS = [
 
 MODERATION_COMMANDS = [
     ("unban", "Unban a user. Also user format `!unban <user_id>`"),
-    ("addflaggedterm", "Add a specified word/term to the list of flaggable terms. Also uses format `!addflaggedterm <term>`"),
+    ("addflaggedterm", "Add a specified word/term to the list of flaggable terms. Using the command without adding a term open a window where multiple terms can be input at once. Also uses format `!addflaggedterm <term (Optional)>`"),
     ("removeflaggedterm", "Remove a specified word/term from the list of flaggable terms. Also uses format `!removeflaggedterm <term>`. **NB: multiple instances of the same term will remove all duplicates as well**"),
     ("viewflaggedterms", "Show a list of all flaggable terms. Also uses format `!viewflaggedterms`"),
     ("addflaggeddomain", "Add a specified domain to the list of flaggable domains. Also uses format `!addflaggeddomain <domain>`"),

@@ -6,6 +6,7 @@ from common.embed import create_embed
 from database import tickets_db as db
 from tickets.ticket_helpers import update_ticket_board
 
+
 @bot.hybrid_command(description = "Sets channel for support tickets")
 @commands.has_any_role("The Big Cheeses", "Server Guardians", "Admin", "Mod")
 async def setticketschannel(ctx, channel: discord.TextChannel):

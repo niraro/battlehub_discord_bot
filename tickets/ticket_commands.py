@@ -109,7 +109,7 @@ async def reply(ctx, *, message: str):
         title = "✅ Reply Sent",
         description = message
     )
-    await ctx.send(embed = confirm_embed, ephemeral = True)
+    await ctx.send(embed = confirm_embed)
 
 @reply.error
 async def reply_error(ctx, error):

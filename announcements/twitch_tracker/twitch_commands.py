@@ -25,7 +25,7 @@ async def tracked_channel_autocomplete(interaction: discord.Interaction, current
     logins = sorted({t["login"] for t in get_guild_twitch_tracks(str(interaction.guild_id))})
     return [app_commands.Choice(name = l, value = l) for l in logins if current.lower() in l][:25]
 
-@bot.hybrid_command(description = "Add Twitch channel(s) to track when live, in a specified Discord channel, with a custom message (optional)")
+@bot.hybrid_command(description = "Add Twitch channel(s) to track when live, in a specified Discord channel, with a custom message")
 @commands.has_any_role("The Big Cheeses", "Server Guardians", "Admin", "Mod")
 @app_commands.choices(style = STYLE_CHOICES)
 async def tracktwitch(ctx, twitch_channel: str, discord_channel: discord.TextChannel, style: str = None, *, message: str = None):

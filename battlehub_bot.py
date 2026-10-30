@@ -3,6 +3,7 @@ from discord.ext import commands
 from dotenv import load_dotenv
 import os
 import asyncio
+import traceback
 from database import init_db
 from common.bot_launch import bot
 from common.embed import create_embed
@@ -61,7 +62,9 @@ async def on_ready():
 @bot.command()
 @commands.is_owner()
 async def sync(ctx):
+    print("Sync: starting")
     synced = await bot.tree.sync()
+    print(f"Sync: done syncing {len(synced)} commands")
     await ctx.send(f"Synced {len(synced)} command(s) globally. May take up to 1h to sync globally")
 
 @sync.error
@@ -69,6 +72,7 @@ async def sync_error(ctx, error):
     if isinstance(error, commands.NotOwner):
         await ctx.message.delete()
         return
+    traceback.print_exception(type(error), error, error.__traceback__)
 
 # !clear_guild_sync -- Clears duplicate commands  
 @bot.command()
@@ -91,6 +95,10 @@ async def on_command_error(ctx, error):
         attempted = ctx.message.content.split()[0] if ctx.message else "that command"
         await ctx.send(f"Command `{attempted}` does not exist.")
         return
+    if ctx.command and ctx.command.has_error_handler():
+        return
+    original = getattr(error, "original", error)
+    traceback.print_exception(type(original), original, original.__traceback__)
 
 # Logs which command gets used, by which user, and in which channel
 @bot.before_invoke
@@ -186,12 +194,6 @@ async def on_raw_reaction_remove(payload):
         await member.add_roles(role, reason = "Reaction role removed")
         
 ####################### ANNOUNCEMENT Events ##################################
-
-# Shutdown/Closer(s)
-class BattleBot(commands.Bot):
-    async def close(self):
-        await twitch_client.close()
-        await super().close()
           
         
 bot.run(TOKEN)

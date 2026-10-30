@@ -14,6 +14,8 @@ from moderation.moderation_helpers import timeout_update
 from moderation.flagging_helpers import scan_message_for_flags
 from scheduling.scheduling_views import ScheduleView, refresh_schedule_posts
 from welcome.welcome_helpers import send_welcome
+from announcements.twitch_tracker.twitch_tasks import start_twitch_polling
+from announcements.twitch_tracker.twitch_api import twitch_client
 import announcements.news_commands
 import bhcommands.commands
 import common.general_commands
@@ -23,6 +25,7 @@ import reactions.reaction_role_commands
 import scheduling.scheduling_commands
 import tickets.ticket_commands
 import welcome.welcome_commands
+import announcements.twitch_tracker.twitch_commands
 
 # Load the token from the .env file
 load_dotenv()
@@ -33,7 +36,7 @@ DEV_GUILD_ID = int(dev_guild_id_raw) if dev_guild_id_raw else None
 # Initialises all tables in "database"
 init_db()
 
-# Tells user that bot is online
+# Tells user that bot is online and checks for any errors on tasks that run 24/7
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user} - bot is online!")
@@ -52,8 +55,9 @@ async def on_ready():
         bot.schedule_ready = True
         bot.add_view(ScheduleView())
         bot.schedule_refresh_task = asyncio.create_task(refresh_schedule_posts(bot))
+        start_twitch_polling()
 
-# !sync -- Syncs commands from dev testing to VPS version
+# !sync -- Syncs commands from dev testing version to VPS version
 @bot.command()
 @commands.is_owner()
 async def sync(ctx):
@@ -115,7 +119,7 @@ async def on_message(message):
     # Allows commands with prefix to work
     await bot.process_commands(message)
 
-################################ Moderation Tools ##################################
+################################ Moderation Events ##################################
 
 @bot.event
 async def on_member_join(member):
@@ -143,7 +147,7 @@ async def on_message_edit(before, after):
         return
     await scan_message_for_flags(bot, after)
       
-############################# REACTION Commands ##############################
+############################# REACTION Events ##############################
     
 # Reaction Listeners
 @bot.event
@@ -180,6 +184,14 @@ async def on_raw_reaction_remove(payload):
         await member.remove_roles(role, reason = "Reaction role removed")
     if remove_role_id and (role := guild.get_role(int(remove_role_id))):
         await member.add_roles(role, reason = "Reaction role removed")
+        
+####################### ANNOUNCEMENT Events ##################################
+
+# Shutdown/Closer(s)
+class BattleBot(commands.Bot):
+    async def close(self):
+        await twitch_client.close()
+        await super().close()
           
         
 bot.run(TOKEN)

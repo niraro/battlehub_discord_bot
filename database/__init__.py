@@ -5,6 +5,7 @@ from database.reaction_roles_db import create_reaction_roles_tables
 from database.scheduling_db import create_scheduling_tables
 from database.tickets_db import create_ticket_tables
 from database.welcome_db import create_welcome_tables
+from database.twitch_db import create_twitch_tables
 
 def init_db():
     create_events_tables()
@@ -13,3 +14,4 @@ def init_db():
     create_scheduling_tables()
     create_ticket_tables()
     create_welcome_tables()
+    create_twitch_tables()

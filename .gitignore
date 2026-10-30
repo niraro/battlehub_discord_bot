@@ -4,3 +4,4 @@ __pycache__/
 bot_data.db
 devlog.md
 to_do.md
+.vscode/
